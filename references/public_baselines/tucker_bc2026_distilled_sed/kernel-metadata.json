@@ -1,0 +1,23 @@
+{
+  "id": "tuckerarrants/bc2026-distilled-sed",
+  "id_no": 116820362,
+  "title": "BC2026 Distilled-SED",
+  "code_file": "bc2026-distilled-sed.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "tuckerarrants/bc2026-distilled-sed-public",
+    "tuckerarrants/birdclef-2026-waveform-cache",
+    "tuckerarrants/perch-v2-no-dft-onnx"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "model_sources": []
+}

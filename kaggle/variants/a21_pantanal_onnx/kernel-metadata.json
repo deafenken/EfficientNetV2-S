@@ -1,0 +1,25 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-a21-pantanal-onnx",
+  "title": "BirdCLEF 2026 A21 Pantanal ONNX",
+  "code_file": "pantanal-distill-birdclef2026-onnx.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [
+    "lixin73/birdclef2026-v27-onnx-perch-meta-forum-v1-lb872",
+    "jaejohn/perch-meta"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/tensorflow2/perch_v2/2",
+    "google/bird-vocalization-classifier/tensorflow2/perch_v2_cpu/1"
+  ]
+}

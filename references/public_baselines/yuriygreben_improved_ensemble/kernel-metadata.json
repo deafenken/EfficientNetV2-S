@@ -1,0 +1,25 @@
+{
+  "id": "yuriygreben/birdclef-2026-improved-ensemble",
+  "id_no": 114358678,
+  "title": "BirdCLEF+ 2026 | Improved Ensemble ",
+  "code_file": "birdclef-2026-improved-ensemble.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "yuriygreben/perch-meta"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/TensorFlow2/perch_v2_cpu/1"
+  ]
+}

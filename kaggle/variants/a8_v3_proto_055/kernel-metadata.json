@@ -1,0 +1,23 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-v3-a8-proto-055",
+  "title": "BirdCLEF 2026 V3 A8 Proto 055",
+  "code_file": "a8_v3_proto_055.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [
+    "jaejohn/perch-meta"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/tensorflow2/perch_v2_cpu/1"
+  ]
+}

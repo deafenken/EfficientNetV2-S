@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+.venv/
+venv/
+.kaggle/
+
+.DS_Store
+
+data/*
+outputs/*
+submission.csv
+
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.zip
+
+# macOS resource forks
+._*
+
+# Claude local settings
+.claude/settings.local.json

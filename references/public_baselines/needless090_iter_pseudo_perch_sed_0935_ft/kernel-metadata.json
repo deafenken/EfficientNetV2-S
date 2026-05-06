@@ -1,0 +1,30 @@
+{
+  "id": "needless090/birdclef-2026-iter-pseudo-perch-sed-lb-0-935-ft",
+  "id_no": 117090832,
+  "title": "BirdCLEF+ 2026 Iter-Pseudo Perch+SED LB 0.935 ft",
+  "code_file": "birdclef-2026-iter-pseudo-perch-sed-lb-0-935-ft.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "",
+    "",
+    "",
+    "needless090/birdclef2026-perch-tflite",
+    "jaejohn/perch-meta",
+    "rishikeshjani/perch-onnx-for-birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/TensorFlow2/perch_v2_cpu/1"
+  ]
+}

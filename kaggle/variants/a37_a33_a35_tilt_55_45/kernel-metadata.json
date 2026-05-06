@@ -1,0 +1,28 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-a37-a33-a35-tilt-55-45",
+  "title": "BirdCLEF 2026 A37 A33 A35 Tilt 55 45",
+  "code_file": "a37_a33_a35_tilt_55_45.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [
+    "tuckerarrants/bc2026-distilled-sed-public",
+    "needless090/birdclef2026-perch-tflite",
+    "konbu17/bird26-train-audio-head-v1",
+    "jaejohn/perch-meta",
+    "tuckerarrants/perch-v2-no-dft-onnx",
+    "rishikeshjani/perch-onnx-for-birdclef-2026"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/tensorflow2/perch_v2_cpu/1"
+  ]
+}

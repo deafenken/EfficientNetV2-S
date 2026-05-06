@@ -1,0 +1,23 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-a24-v3-probe-heavy-softpost-mirror",
+  "title": "BirdCLEF 2026 A24 V3 Probe Heavy Softpost Mirror",
+  "code_file": "a24_v3_probe_heavy_softpost_mirror.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [
+    "jaejohn/perch-meta"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/tensorflow2/perch_v2_cpu/1"
+  ]
+}

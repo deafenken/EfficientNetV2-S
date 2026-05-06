@@ -1,0 +1,50 @@
+competition: birdclef-2026
+seed: 42
+
+paths:
+  data_root: data/birdclef-2026
+  output_dir: outputs/baseline
+  train_audio: train_audio
+  train_soundscapes: train_soundscapes
+  test_soundscapes: test_soundscapes
+  train_csv: train.csv
+  taxonomy_csv: taxonomy.csv
+  sample_submission: sample_submission.csv
+  soundscape_labels_csv: train_soundscapes_labels.csv
+
+audio:
+  sample_rate: 32000
+  clip_seconds: 5.0
+  n_fft: 2048
+  hop_length: 512
+  n_mels: 128
+  f_min: 20
+  f_max: 16000
+  top_db: 80
+
+data:
+  include_train_audio: true
+  include_train_soundscapes: false
+  val_fraction: 0.2
+  max_train_samples:
+  max_val_samples:
+
+model:
+  name: resnet18
+  pretrained: false
+
+train:
+  epochs: 3
+  batch_size: 32
+  num_workers: 2
+  lr: 0.0003
+  weight_decay: 0.00001
+  amp: true
+  grad_clip_norm: 5.0
+
+infer:
+  batch_size: 32
+  num_workers: 2
+  segments_per_file: 12
+  fill_missing: 0.0
+

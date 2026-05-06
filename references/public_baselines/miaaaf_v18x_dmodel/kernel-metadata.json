@@ -1,0 +1,25 @@
+{
+  "id": "miaaaf/v18x-dmodel",
+  "id_no": 115211776,
+  "title": "v18x-dmodel",
+  "code_file": "v18x-dmodel.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "jaejohn/perch-meta"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/TensorFlow2/perch_v2_cpu/1"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "ttahara/birdclef-2026-hgnetv2-b0-baseline-inference",
+  "id_no": 113110382,
+  "title": "BirdCLEF+2026: HGNetV2-B0 Baseline [Inference]",
+  "code_file": "birdclef-2026-hgnetv2-b0-baseline-inference.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [],
+  "kernel_sources": [
+    "ttahara/birdclef-2026-download-wheels",
+    "ttahara/birdclef-2026-hgnetv2-b0-baseline-training"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "model_sources": []
+}

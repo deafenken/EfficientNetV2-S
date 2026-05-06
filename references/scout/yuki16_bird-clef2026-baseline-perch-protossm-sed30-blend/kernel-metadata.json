@@ -1,0 +1,24 @@
+{
+  "id": "yuki16/bird-clef2026-baseline-perch-protossm-sed30-blend",
+  "id_no": 117746274,
+  "title": "Bird_CLEF2026_baseline_perch_protossm_sed30_blend",
+  "code_file": "bird-clef2026-baseline-perch-protossm-sed30-blend.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "tuckerarrants/bc2026-distilled-sed-public",
+    "rishikeshjani/perch-onnx-for-birdclef-2026"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/TensorFlow2/perch_v2_cpu/1"
+  ]
+}

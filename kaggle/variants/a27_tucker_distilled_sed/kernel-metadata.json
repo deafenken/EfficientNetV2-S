@@ -1,0 +1,21 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-a27-tucker-distilled-sed",
+  "title": "BirdCLEF 2026 A27 Tucker Distilled SED",
+  "code_file": "bc2026-distilled-sed.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [
+    "tuckerarrants/bc2026-distilled-sed-public",
+    "tuckerarrants/birdclef-2026-waveform-cache",
+    "tuckerarrants/perch-v2-no-dft-onnx"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [],
+  "model_sources": []
+}

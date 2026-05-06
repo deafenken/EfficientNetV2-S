@@ -1,0 +1,30 @@
+{
+  "id": "kospintr/birdclef-efficientnet-perch-distill-pytorch",
+  "id_no": 112186393,
+  "title": "BirdCLEF | EfficientNet+Perch Distill. | PyTorch",
+  "code_file": "birdclef-efficientnet-perch-distill-pytorch.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [
+    "audio classification",
+    "pytorch",
+    "efficientnet",
+    "transfer learning"
+  ],
+  "dataset_sources": [
+    "",
+    "kospintr/birdclef-animal-images"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "model_sources": [
+    "",
+    "google/bird-vocalization-classifier/TensorFlow2/perch_v2/2"
+  ]
+}

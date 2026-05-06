@@ -1,0 +1,22 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-perch-lgbm-plus",
+  "title": "BirdCLEF 2026 Perch LGBM Plus",
+  "code_file": "version_3_lgbm_plus.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "dataset_sources": [
+    "jaejohn/perch-meta"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/tensorflow2/perch_v2_cpu/1"
+  ]
+}

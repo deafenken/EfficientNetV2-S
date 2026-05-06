@@ -1,0 +1,20 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-a26-a0-a24-rank-ensemble",
+  "title": "BirdCLEF 2026 A26 A0 A24 Rank Ensemble",
+  "code_file": "a26_a0_a24_rank_ensemble.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "longkunshicandyman/birdclef-2026-v3-lgbm-original",
+    "longkunshicandyman/birdclef-2026-a24-v3-probe-heavy-softpost-mirror"
+  ],
+  "model_sources": []
+}

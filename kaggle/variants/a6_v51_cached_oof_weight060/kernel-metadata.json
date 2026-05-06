@@ -1,0 +1,24 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-v51-cached-oof-weight-060",
+  "title": "BirdCLEF 2026 V51 Cached OOF Weight 060",
+  "code_file": "a6_v51_cached_oof_weight060.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [
+    "yuriygreben/perch-meta",
+    "atahalam/perch-meta-0-943",
+    "rishikeshjani/perch-onnx-for-birdclef-2026",
+    "i2nfinit3y/onnxruntime"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [],
+  "model_sources": [
+    "google/bird-vocalization-classifier/tensorflow2/perch_v2_cpu/1"
+  ]
+}

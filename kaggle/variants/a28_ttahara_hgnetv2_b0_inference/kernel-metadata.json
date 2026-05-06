@@ -1,0 +1,20 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-a28-ttahara-hgnetv2-b0-inference",
+  "title": "BirdCLEF 2026 A28 Ttahara HGNetV2 B0 Inference",
+  "code_file": "birdclef-2026-hgnetv2-b0-baseline-inference.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ttahara/birdclef-2026-download-wheels",
+    "ttahara/birdclef-2026-hgnetv2-b0-baseline-training"
+  ],
+  "model_sources": []
+}

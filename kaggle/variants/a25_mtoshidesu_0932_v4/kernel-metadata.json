@@ -1,0 +1,24 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-a25-mtoshidesu-0932-v4",
+  "title": "BirdCLEF 2026 A25 Mtoshidesu 0932 V4",
+  "code_file": "0-932-test-mod-version-4.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": false,
+  "enable_tpu": false,
+  "dataset_sources": [
+    "jaejohn/perch-meta",
+    "rishikeshjani/perch-onnx-for-birdclef-2026"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ashok205/tf-wheels"
+  ],
+  "model_sources": [
+    "google/bird-vocalization-classifier/tensorflow2/perch_v2_cpu/1"
+  ]
+}

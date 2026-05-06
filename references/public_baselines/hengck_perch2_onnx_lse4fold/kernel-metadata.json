@@ -1,0 +1,23 @@
+{
+  "id": "hengck23/perch2-onnx-direct-lse-256-4fold",
+  "id_no": 113927157,
+  "title": "perch2-onnx-direct-lse-256-4fold",
+  "code_file": "perch2-onnx-direct-lse-256-4fold.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "",
+    "",
+    "lixin73/birdclef2026-v27-onnx-perch-meta-forum-v1-lb872"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "model_sources": []
+}
