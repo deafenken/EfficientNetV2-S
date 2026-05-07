@@ -9,10 +9,17 @@ ABLATION_DIR ?= references/public_baselines/youssefmo942009_version_3_lgbm/ablat
 SCORE_ABLATION_DIR ?= references/public_baselines/youssefmo942009_version_3_lgbm/score_ablations
 KERNEL_REF ?= longkunshicandyman/birdclef-2026-perch-lgbm-plus
 
-.PHONY: setup download download-aux inspect debug-train train infer-fallback infer smoke prepare-kaggle-kernel prepare-kaggle-variants push-kaggle-kernel kernel-status submit-completed-variants ablations score-ablations
+.PHONY: setup setup-pip lock download download-aux inspect debug-train train infer-fallback infer smoke prepare-kaggle-kernel prepare-kaggle-variants push-kaggle-kernel kernel-status submit-completed-variants ablations score-ablations
 
 setup:
+	uv sync
+
+setup-pip:
 	$(PYTHON) -m pip install -r requirements.txt
+
+lock:
+	uv lock
+	uv export --no-hashes --no-emit-project --format requirements-txt -o requirements.txt
 
 download:
 	KAGGLE_CONFIG_DIR="$(KAGGLE_CONFIG_DIR)" KAGGLE_BIN="$(KAGGLE_BIN)" bash scripts/download_data.sh

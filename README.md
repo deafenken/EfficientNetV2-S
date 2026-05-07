@@ -14,9 +14,17 @@ BirdCLEF+ 2026 开工仓库。第一版目标很朴素：先有一个能本地�
 
 ## 快速开始
 
+依赖用 [uv](https://docs.astral.sh/uv/) 管理（`pyproject.toml` + `uv.lock`）。安装 uv 后：
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+uv sync                  # 按 uv.lock 创建 .venv 并安装全部依赖
+source .venv/bin/activate  # 可选；也可以用 `uv run <cmd>` 免激活
+```
+
+如果环境只支持 pip，仓库同时提供由 `uv export` 生成的 `requirements.txt`：
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
