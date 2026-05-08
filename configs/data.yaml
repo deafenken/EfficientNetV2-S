@@ -1,0 +1,74 @@
+# Shared data + audio + path defaults.
+# Per-experiment yamls in configs/exp/ are merged on top of this file.
+
+competition: birdclef-2026
+seed: 42
+
+paths:
+  data_root: data/birdclef-2026
+  output_dir: outputs/exp
+  fold_csv: outputs/folds/folds.csv
+  mel_stats: outputs/stats/mel_stats.json
+  train_audio: train_audio
+  train_soundscapes: train_soundscapes
+  test_soundscapes: test_soundscapes
+  train_csv: train.csv
+  taxonomy_csv: taxonomy.csv
+  sample_submission: sample_submission.csv
+  soundscape_labels_csv: train_soundscapes_labels.csv
+
+# Source flags consumed by ``birdclef2026.metadata.build_train_metadata``.
+data:
+  include_train_audio: true
+  include_train_soundscapes: false   # turn on once R1 pseudo-labels are produced
+  secondary_weight: 0.3
+
+# log-mel + global normalization (filled from outputs/stats/mel_stats.json by training).
+audio:
+  sample_rate: 32000
+  clip_seconds: 5.0
+  n_fft: 2048
+  hop_length: 512
+  n_mels: 128
+  f_min: 20.0
+  # f_max=14000 leaves a margin under Nyquist (16000) and matches BirdCLEF 25 2nd Place;
+  # bumping to 15500 also works, but 16000 makes the top mel filter zero-width.
+  f_max: 14000.0
+  top_db: 80.0       # legacy field, retained for back-compat; LogMel ignores it (uses amin instead)
+  global_mean: null   # filled by scripts/02_compute_mel_stats.py
+  global_std: null
+
+# CV defaults.
+cv:
+  n_splits: 5
+  stratify_col: primary_label
+  group_col: filename
+
+# Augmentation defaults — experiments override what they need.
+augment:
+  mixup:
+    p: 0.5
+    alpha: null              # null → 50/50 wave avg (BirdCLEF 25 2nd default)
+    target_aggregation: sum  # 'sum' (clamp 0..1, OR), 'max', or 'beta'
+  background_noise:
+    enabled: false           # set true once you have ESC-50 / soundscape-nocall on disk
+    dirs: []                 # list of directories to scan recursively
+    suffixes: [".wav", ".ogg", ".flac", ".mp3"]
+    min_amp: 0.25
+    max_amp: 0.75
+    p: 0.5
+    normalize: true
+  spec_augment:
+    freq_mask_param: 10
+    freq_mask_max: 3
+    freq_mask_p: 0.3
+    time_mask_param: 20
+    time_mask_max: 3
+    time_mask_p: 0.3
+  random_filter:
+    enabled: true
+    n_bands: 4
+    min_db: -20.0
+    n_fft: 1024
+    hop_length: 512
+    normalize_wave: true

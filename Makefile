@@ -7,19 +7,38 @@ KAGGLE_BIN ?= $(CURDIR)/.venv/bin/kaggle
 KERNEL_DIR ?= kaggle/version_3_lgbm_plus
 KERNEL_REF ?= longkunshicandyman/birdclef-2026-perch-lgbm-plus
 
+# Commit-2 training pipeline knobs.
+DATA_CONFIG ?= configs/data.yaml
+EXP ?= configs/exp/e01_v2s_5fold.yaml
+FOLD ?= 0
+FOLD_CSV ?= outputs/folds/folds.csv
+MEL_STATS ?= outputs/stats/mel_stats.json
+MEL_STATS_FILES ?= 4000
+
 .PHONY: help setup-env data setup setup-pip lock download download-aux \
 	inspect debug-train train infer-fallback infer smoke \
+	folds mel-stats train-ddp \
 	prepare-kaggle-kernel push-kaggle-kernel kernel-status
 
 help:
 	@echo "Common targets:"
 	@echo "  setup-env             — bash scripts/00_setup_env.sh (uv sync + GPU/Kaggle check)"
-	@echo "  data                  — bash scripts/01_download_data.sh (idempotent)"
+	@echo "  data                  — bash scripts/01_download_data.sh (idempotent download)"
 	@echo "  inspect               — PYTHONPATH=src python -m birdclef2026.inspect_data"
-	@echo "  debug-train / train   — legacy single-process baseline (will be replaced in Commit 2)"
-	@echo "  infer / infer-fallback— legacy single-checkpoint inference"
 	@echo "  smoke                 — scripts/smoke_checks.py (postprocess sanity)"
-	@echo "  prepare-kaggle-kernel — sync kaggle/<dir> for submission notebook push"
+	@echo ""
+	@echo "Commit 2 training pipeline:"
+	@echo "  make folds            — build outputs/folds/folds.csv (StratifiedGroupKFold by filename)"
+	@echo "  make mel-stats        — compute outputs/stats/mel_stats.json (paste mean/std into data.yaml)"
+	@echo "  make train-ddp EXP=configs/exp/e01_v2s_5fold.yaml FOLD=0"
+	@echo "                        — torchrun --nproc_per_node=\$$N for one fold"
+	@echo ""
+	@echo "Legacy single-process baseline (kept for now):"
+	@echo "  debug-train / train   — python -m birdclef2026.train"
+	@echo "  infer / infer-fallback— python -m birdclef2026.infer"
+	@echo ""
+	@echo "Kaggle kernel push (for the future submission notebook):"
+	@echo "  prepare-kaggle-kernel — sync kaggle/<dir>"
 	@echo "  push-kaggle-kernel    — kaggle kernels push -p kaggle/<dir>"
 	@echo "  kernel-status         — kaggle kernels status <ref>"
 
@@ -48,7 +67,18 @@ download:
 download-aux:
 	KAGGLE_CONFIG_DIR="$(KAGGLE_CONFIG_DIR)" KAGGLE_BIN="$(KAGGLE_BIN)" bash scripts/download_aux_data.sh
 
-# ---- legacy single-process baseline (replaced by Commit 2 DDP entry) ----
+# ---- Commit 2 training pipeline ----
+folds:
+	PYTHONPATH=src uv run python scripts/03_make_folds.py --config $(DATA_CONFIG) --out $(FOLD_CSV)
+
+mel-stats:
+	PYTHONPATH=src uv run python scripts/02_compute_mel_stats.py \
+		--config $(DATA_CONFIG) --out $(MEL_STATS) --max-files $(MEL_STATS_FILES)
+
+train-ddp:
+	bash scripts/10_train.sh $(EXP) $(FOLD)
+
+# ---- legacy single-process baseline (kept until Commit 2 supersedes) ----
 inspect:
 	PYTHONPATH=src $(PYTHON) -m birdclef2026.inspect_data --config $(CONFIG)
 

@@ -1,0 +1,56 @@
+# Experiment e01 — EfficientNetV2-S baseline (5-fold).
+#
+# Mirrors BirdCLEF 2025 2nd Place's V2-S setup, with a few L40 / bf16
+# adaptations:
+#   * bf16 AMP (free on Ada; 2nd place was FP32)
+#   * EMA decay 0.999 (off in 2nd place)
+#   * grad_clip 1.0 (off in 2nd place; defensive against rare loss spikes)
+#   * 2-epoch LinearLR warmup → CosineAnnealingLR (2nd place was CosineWarmRestarts no warmup)
+#
+# Expected (4×L40, 50 ep × 5 fold):
+#   wall clock ≈ 8–12 h total
+#   single-fold OOF macro-AUC ≈ 0.91–0.93
+#   5-fold mean OOF ≈ 0.92 ± 0.005
+#
+# Run:
+#   bash scripts/10_train.sh configs/exp/e01_v2s_5fold.yaml 0
+#   ... (folds 1..4 in turn or on separate machines)
+
+model:
+  name: tf_efficientnetv2_s.in21k_ft_in1k
+  pretrained: true
+  head_dropout: 0.5
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  amp_dtype: bf16          # only 'bf16' (default on L40) or 'fp32'; fp16 was removed (no GradScaler)
+  grad_clip: 1.0
+  ema_decay: 0.999
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.005
+  ls_mode: standard         # 'standard' | 'positive' | 'off'
+
+# Augmentation — overrides the defaults in configs/data.yaml only where needed.
+augment:
+  background_noise:
+    enabled: false
+    # Once you've downloaded ESC-50 + soundscape-nocall, point dirs here:
+    # dirs:
+    #   - data/aux/esc50/audio
+    #   - data/aux/soundscape_nocall
