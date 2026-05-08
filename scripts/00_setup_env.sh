@@ -40,18 +40,47 @@ else
 fi
 
 step 4/4 "Kaggle credentials"
-if [[ -f "$HOME/.kaggle/kaggle.json" ]]; then
-    echo "  found  ~/.kaggle/kaggle.json"
+# Kaggle changed its API auth UI in 2025. Three sources of truth, in priority order:
+#   1) KAGGLE_API_TOKEN env var (new-style, recommended for headless servers)
+#   2) ~/.kaggle/kaggle.json   (legacy, still fully supported)
+#   3) ./.kaggle/kaggle.json   (repo-local legacy fallback used by the Makefile)
+if [[ -n "${KAGGLE_API_TOKEN:-}" ]]; then
+    echo "  found  \$KAGGLE_API_TOKEN (new-style env var)"
+elif [[ -f "$HOME/.kaggle/kaggle.json" ]]; then
+    echo "  found  ~/.kaggle/kaggle.json (legacy)"
 elif [[ -f "$ROOT/.kaggle/kaggle.json" ]]; then
-    echo "  found  ./.kaggle/kaggle.json (repo-local)"
+    echo "  found  ./.kaggle/kaggle.json (repo-local legacy)"
+elif [[ -f "$HOME/.kaggle/access_token" ]]; then
+    cat <<'EOF'
+  found  ~/.kaggle/access_token  — BUT recent Kaggle CLI versions do NOT read
+  this file directly. Export it as an env var before running download scripts:
+    export KAGGLE_API_TOKEN="$(cat ~/.kaggle/access_token)"
+  (Add the export line to ~/.bashrc / ~/.zshrc to make it persistent.)
+EOF
 else
     cat <<'EOF'
-  MISSING kaggle.json — needed for `bash scripts/01_download_data.sh`.
-  Steps:
-    1) https://www.kaggle.com/settings/account → 'Create New Token'
-    2) mkdir -p "$HOME/.kaggle"
-    3) mv ~/Downloads/kaggle.json "$HOME/.kaggle/kaggle.json"
-    4) chmod 600 "$HOME/.kaggle/kaggle.json"
+  MISSING Kaggle credentials — needed for `bash scripts/01_download_data.sh`.
+
+  Kaggle now offers two auth flows at https://www.kaggle.com/settings/api :
+
+  Option A — Legacy kaggle.json (RECOMMENDED on first install, still supported)
+    1) Scroll past the new "Generate New Token" button.
+    2) In the "Legacy API Credentials" block, click "Create Legacy API Key".
+    3) Browser downloads kaggle.json.
+       mkdir -p "$HOME/.kaggle"
+       mv ~/Downloads/kaggle.json "$HOME/.kaggle/kaggle.json"
+       chmod 600 "$HOME/.kaggle/kaggle.json"
+
+  Option B — New-style token string (best for headless servers)
+    1) Click the top "Generate New Token" button → a popup shows a long
+       KGAT_... string (NO file is downloaded).
+    2) Copy it and add to your shell rc (~/.bashrc or ~/.zshrc):
+         export KAGGLE_API_TOKEN="paste-the-KGAT_...-string-here"
+    3) source ~/.bashrc   (or open a fresh shell).
+
+  Either flow requires you to first ACCEPT the competition rules at
+  https://www.kaggle.com/competitions/birdclef-2026/rules — otherwise the
+  download API returns 403.
 EOF
 fi
 
