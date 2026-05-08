@@ -23,6 +23,7 @@ dependencies = [
     "matplotlib>=3.7",
     "seaborn>=0.13",
     "kaggle>=1.6",
+    "kagglehub>=1.0",
 ]
 
 [build-system]
