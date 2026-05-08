@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
+"""Sanity checks for the postprocess utilities.
+
+Kept intentionally small. Imports are limited to modules that survive past
+the Commit-1 cleanup (the LGBM probe-feature path was archived to
+``archive/legacy_blend_pipeline/lgbm_features.py``).
+
+Run via ``make smoke``.
+"""
+
 import numpy as np
 import pandas as pd
 
-from birdclef2026.lgbm_features import build_probe_features
 from birdclef2026.postprocess import (
     adaptive_delta_smooth,
     align_submission_to_sample,
@@ -13,22 +21,9 @@ from birdclef2026.postprocess import (
 )
 
 
-def main():
+def main() -> None:
     n_rows = 24
     n_classes = 4
-    emb = np.zeros((n_rows, 8), dtype=np.float32)
-    raw = np.linspace(-2, 2, n_rows).astype(np.float32)
-    features = build_probe_features(
-        emb,
-        raw_scores=raw,
-        prior_scores=raw * 0.1,
-        base_scores=raw * 0.2,
-        hour_utc=np.arange(n_rows) % 24,
-        site_id=np.ones(n_rows),
-        window_idx=np.arange(n_rows) % 12,
-    )
-    assert features.shape[0] == n_rows
-    assert np.isfinite(features).all()
 
     scores = np.linspace(-3, 3, n_rows * n_classes, dtype=np.float32).reshape(n_rows, n_classes)
     probs = sigmoid_clip(scores)
@@ -44,9 +39,9 @@ def main():
     aligned = align_submission_to_sample(sub, sample)
     assert aligned["row_id"].tolist() == ["b", "a"]
     validate_submission(aligned, sample)
+
     print("smoke checks ok")
 
 
 if __name__ == "__main__":
     main()
-

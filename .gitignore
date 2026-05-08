@@ -14,13 +14,27 @@ venv/
 
 data/*
 outputs/*
+!outputs/.gitkeep
 submission.csv
+submissions/
 
+# training artifacts
 *.pt
 *.pth
 *.ckpt
 *.onnx
+*.tflite
 *.zip
+*.npy
+*.h5
+*.hdf5
+
+# logging / experiment trackers
+wandb/
+lightning_logs/
+mlruns/
+.cache/
+.ipynb_checkpoints/
 
 # macOS resource forks
 ._*
