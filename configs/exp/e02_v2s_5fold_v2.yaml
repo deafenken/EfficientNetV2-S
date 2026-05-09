@@ -65,10 +65,10 @@ augment:
   # `enabled: true` and uncomment dirs after running scripts/05_prep_esc50.sh
   # (or whichever script lands ESC-50 ambient files into data/aux/).
   background_noise:
-    enabled: false
+    enabled: true
     dirs:
-      # - data/aux/esc50_ambient
-      # - data/aux/soundscape_nocall
+      - data/aux/esc50_ambient            # 240 files (rain/wind/insects/thunder/frog/crickets)
+      # - data/aux/soundscape_nocall      # add later when extracted from train_soundscapes
     suffixes: [".wav", ".ogg", ".flac", ".mp3"]
     min_amp: 0.25
     max_amp: 0.75
