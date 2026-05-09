@@ -41,23 +41,47 @@ class ModelEMA:
     """Track an EMA shadow of the (DDP-unwrapped) model parameters.
 
     Buffers are copied from the source model verbatim (no decay).
+
+    Decay warmup
+    ------------
+    With a fixed ``decay=0.999`` the EMA stays ~80% **initial weights** for
+    the first 200 steps (`0.999**222 ≈ 0.80`), which makes early-epoch
+    validation look like random because we're effectively evaluating a
+    near-untrained model. ``warmup=True`` (default) ramps the effective
+    decay as ``min(decay, (1 + n_updates) / (10 + n_updates))`` — the same
+    schedule used by ``timm.utils.ModelEmaV2`` and the original Inception
+    EMA. The schedule starts near 0 (EMA tracks the live model closely),
+    crosses 0.9 around step 100, and converges to ``decay`` after a few
+    hundred steps so the long-term averaging behavior is preserved.
     """
 
-    def __init__(self, model: nn.Module, decay: float = 0.999):
+    def __init__(self, model: nn.Module, decay: float = 0.999, warmup: bool = True):
         self.decay = float(decay)
+        self.warmup = bool(warmup)
+        self.num_updates = 0
         base = _unwrap_ddp(model)
         self.module = deepcopy(base).eval()
         for p in self.module.parameters():
             p.requires_grad_(False)
 
+    def _current_decay(self) -> float:
+        if not self.warmup:
+            return self.decay
+        # +1 so step 0 gives a non-zero decay; +10 controls how fast the
+        # ramp approaches the asymptote.
+        ramped = (1 + self.num_updates) / (10 + self.num_updates)
+        return min(self.decay, ramped)
+
     @torch.no_grad()
     def update(self, model: nn.Module) -> None:
+        self.num_updates += 1
+        d = self._current_decay()
         src = _unwrap_ddp(model)
         # EMA on parameters
         src_params = dict(src.named_parameters())
         for name, dst in self.module.named_parameters():
             s = src_params[name].detach().to(dst.device, dtype=dst.dtype)
-            dst.mul_(self.decay).add_(s, alpha=1.0 - self.decay)
+            dst.mul_(d).add_(s, alpha=1.0 - d)
         # Copy buffers (BN running mean/var, num_batches_tracked, etc.)
         src_buffers = dict(src.named_buffers())
         for name, dst in self.module.named_buffers():

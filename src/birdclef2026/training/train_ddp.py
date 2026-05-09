@@ -462,7 +462,10 @@ def main():
 
     # ---- EMA ----
     ema_decay = float(train_cfg.get("ema_decay", 0.999))
-    ema: ModelEMA | None = ModelEMA(model, decay=ema_decay) if ema_decay > 0 else None
+    ema_warmup = bool(train_cfg.get("ema_warmup", True))
+    ema: ModelEMA | None = (
+        ModelEMA(model, decay=ema_decay, warmup=ema_warmup) if ema_decay > 0 else None
+    )
     if ema is not None:
         ema.module = ema.module.to(device)
 
