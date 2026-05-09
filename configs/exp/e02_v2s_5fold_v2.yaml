@@ -1,0 +1,76 @@
+# Experiment e02 — V2-S "improved" 5-fold (Tier 3 ablation on top of e01).
+#
+# Three changes vs e01:
+#   (A) 2025 SWA bird-pretrained backbone (bigXCV2Ext, larger pretrain corpus)
+#       — `v2s_bc2025_swa.ckpt` ~80 MB, drop-in 1-ch state_dict.
+#   (B) Background noise augmentation: ESC-50 ambient categories (rain, wind,
+#       insects, frog, crickets, thunder) — turn on once
+#       `data/aux/esc50_ambient/` is populated.
+#   (C) fp32 amp_dtype to match Sydorskyy's `noamp` setting in selected_ebs.py
+#       (their original V2-S config explicitly sets precision=32-true).
+#
+# Expected vs e01 single fold (e01 baseline ≈ 0.89 by e50 + SWA):
+#   + 0.005~0.015 from (A)
+#   + 0.010~0.020 from (B) (only when BG dir is populated)
+#   + 0.005~0.010 from (C)
+#   total ≈ 0.91~0.93 single fold (target zone of plan_a)
+
+model:
+  name: tf_efficientnetv2_s.in21k_ft_in1k
+  pretrained: true
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  # (A) 2025 SWA pretrained on the larger bigXCV2Ext corpus (BC 2021-2025 +
+  # XC + iNat, weight-averaged across last several SWA epochs). Empirically
+  # better than the 2024 v1 pretrain in their published ablation.
+  pretrained_backbone_path: data/aux/pretrained/v2s_bc2025_swa.ckpt
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+  head_lr_mul: 3.0
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  # (C) fp32 — matches BC2025 2nd Place's `noamp` setting. Cost: ~30% slower
+  # per-step. Benefit: avoids late-epoch bf16 underflow on the long-tail
+  # logits of 234-way multi-label, where gradients become tiny in cosine tail.
+  amp_dtype: fp32
+  grad_clip: 1.0
+  ema_decay: 0.999
+  swa_epochs: 5
+  val_n_crops: 5
+  sampler:
+    kind: balanced
+    rare_floor: 30
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  # (B) Background-mix once ESC-50 ambient subset is staged. Set
+  # `enabled: true` and uncomment dirs after running scripts/05_prep_esc50.sh
+  # (or whichever script lands ESC-50 ambient files into data/aux/).
+  background_noise:
+    enabled: false
+    dirs:
+      # - data/aux/esc50_ambient
+      # - data/aux/soundscape_nocall
+    suffixes: [".wav", ".ogg", ".flac", ".mp3"]
+    min_amp: 0.25
+    max_amp: 0.75
+    p: 0.5
+    normalize: true
