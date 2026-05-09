@@ -509,6 +509,17 @@ def main():
 
     # ---- loss / optimizer / scheduler ----
     loss_cfg = cfg.get("loss", {}) or {}
+    pos_weight_val = loss_cfg.get("pos_weight")
+    if pos_weight_val is not None:
+        # Scalar applies to all classes; per-class would be a list of length C.
+        if isinstance(pos_weight_val, (list, tuple)):
+            pw_tensor = torch.tensor(list(pos_weight_val), dtype=torch.float32)
+        else:
+            pw_tensor = torch.full(
+                (n_classes,), float(pos_weight_val), dtype=torch.float32
+            )
+    else:
+        pw_tensor = None
     loss_fn = FocalBCEWithLogits(
         alpha=float(loss_cfg.get("alpha", 0.25)),
         gamma=float(loss_cfg.get("gamma", 2.0)),
@@ -516,6 +527,7 @@ def main():
         focal_weight=float(loss_cfg.get("focal_weight", 1.0)),
         label_smoothing=float(loss_cfg.get("label_smoothing", 0.0)),
         ls_mode=str(loss_cfg.get("ls_mode", "standard")),
+        pos_weight=pw_tensor,
     ).to(device)
 
     train_cfg = cfg.get("train", {}) or {}

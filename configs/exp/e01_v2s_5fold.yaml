@@ -58,6 +58,14 @@ loss:
   focal_weight: 0.0
   label_smoothing: 0.005
   ls_mode: standard         # 'standard' | 'positive' | 'off'
+  # n_neg/n_pos ≈ 192:1 in 234-way val. With BCE(reduction='mean') the
+  # negative term collectively swamps the per-row positive gradient — model
+  # collapses to "predict ≈0 everywhere" (val_auc ≈ 0.5, p99 < 0.07, the
+  # diag's gap=0.004 confirmed this). pos_weight upweights the positive
+  # term inside binary_cross_entropy_with_logits to break the trivial-zero
+  # attractor. 10 is a moderate starting point (sqrt(192) ≈ 14; full
+  # balance would be 192 but tends to overshoot to "predict everything").
+  pos_weight: 10.0
 
 # Augmentation — overrides the defaults in configs/data.yaml only where needed.
 augment:
