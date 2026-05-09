@@ -569,10 +569,40 @@ def main():
     opt_name = str(opt_cfg.get("name", "adamw")).lower()
     lr = float(opt_cfg.get("lr", 1e-4))
     wd = float(opt_cfg.get("weight_decay", 1e-2))
+    head_lr_mul = float(opt_cfg.get("head_lr_mul", 3.0))
+
+    # Per-param-group lr: pretrained backbone gets the base lr; randomly-init
+    # head (AttHead + GeMFreq pool) gets head_lr_mul × base lr so the head
+    # converges fast without disturbing the pretrained features. Names are
+    # 'module.backbone.*' / 'module.head.*' / etc. after DDP wrap; strip the
+    # prefix before matching.
+    backbone_params: list = []
+    head_params: list = []
+    for name, p in model.named_parameters():
+        base_name = name[len("module."):] if name.startswith("module.") else name
+        if base_name.startswith("backbone"):
+            backbone_params.append(p)
+        else:
+            head_params.append(p)
+    if not head_params:
+        raise RuntimeError("optimizer split found no head parameters; check naming")
+    param_groups = [
+        {"params": backbone_params, "lr": lr, "name": "backbone"},
+        {"params": head_params, "lr": lr * head_lr_mul, "name": "head"},
+    ]
+    if _is_main(rank):
+        n_b = sum(p.numel() for p in backbone_params)
+        n_h = sum(p.numel() for p in head_params)
+        print(
+            f"[optim] backbone {n_b/1e6:.1f}M @ lr={lr:.2e}, "
+            f"head {n_h/1e6:.1f}M @ lr={lr * head_lr_mul:.2e} "
+            f"(head_lr_mul={head_lr_mul})"
+        )
+
     if opt_name == "adamw":
-        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd, eps=1e-8)
+        optimizer = torch.optim.AdamW(param_groups, weight_decay=wd, eps=1e-8)
     elif opt_name == "radam":
-        optimizer = torch.optim.RAdam(model.parameters(), lr=lr, weight_decay=wd)
+        optimizer = torch.optim.RAdam(param_groups, weight_decay=wd)
     else:
         raise ValueError(f"unknown optim.name: {opt_name!r}")
 
