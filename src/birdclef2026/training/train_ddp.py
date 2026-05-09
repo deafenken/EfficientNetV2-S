@@ -631,10 +631,21 @@ def main():
     log_csv = out_dir / "log.csv"
     best_path = out_dir / "best.pt"
     last_path = out_dir / "last.pt"
+    swa_path = out_dir / "swa.pt"
     oof_path = out_dir / "oof.npz"
+    swa_oof_path = out_dir / "swa_oof.npz"
 
     best_auc = -1.0
     final_oof = None  # (ids, logits, labels)
+
+    # ---- SWA accumulator ----
+    # Average EMA weights across the last `swa_epochs` epochs. Standard +0.005
+    # ~0.015 trick — averaging post-cosine flat weights smooths the optimum.
+    # Disabled when swa_epochs <= 0.
+    swa_epochs = int(train_cfg.get("swa_epochs", 5))
+    swa_start_epoch = max(0, epochs - swa_epochs) if swa_epochs > 0 else epochs
+    swa_module: nn.Module | None = None
+    swa_count = 0
 
     for epoch in range(epochs):
         train_loss = train_one_epoch(
@@ -679,6 +690,33 @@ def main():
                 save_checkpoint(ckpt, best_path)
                 final_oof = (ids, val_logits, val_labels)
 
+            # SWA accumulator on the EMA module (or raw model if no EMA).
+            # Running mean: swa = ((n-1) * swa + new) / n.
+            if swa_epochs > 0 and epoch >= swa_start_epoch:
+                src_for_swa = ema.module if ema is not None else (
+                    model.module if isinstance(model, DDP) else model
+                )
+                if swa_module is None:
+                    from copy import deepcopy
+                    swa_module = deepcopy(src_for_swa).eval()
+                    for p in swa_module.parameters():
+                        p.requires_grad_(False)
+                    swa_count = 1
+                else:
+                    swa_count += 1
+                    n = float(swa_count)
+                    with torch.no_grad():
+                        for p_swa, p_src in zip(
+                            swa_module.parameters(), src_for_swa.parameters()
+                        ):
+                            p_swa.mul_((n - 1.0) / n).add_(p_src.detach(), alpha=1.0 / n)
+                        # Buffers (BN running_mean/var) — copy from latest, no avg.
+                        for b_swa, b_src in zip(
+                            swa_module.buffers(), src_for_swa.buffers()
+                        ):
+                            b_swa.copy_(b_src.detach())
+                print(f"[swa] accumulated epoch {epoch} (n={swa_count})")
+
         if dist.is_initialized():
             dist.barrier()
 
@@ -693,6 +731,32 @@ def main():
         # also write a one-line summary file for orchestration scripts
         (out_dir / "oof_auc.txt").write_text(f"{best_auc:.6f}\n")
         print(f"[done] best val_auc={best_auc:.4f}; wrote {oof_path}")
+
+    # ---- SWA: validate the averaged module and save (rank-0 only). ----
+    if _is_main(rank) and swa_module is not None:
+        print(f"[swa] validating averaged module (n={swa_count} epochs)")
+        swa_val_loss, swa_val_auc, swa_ids, swa_logits, swa_labels = validate(
+            swa_module, val_loader, loss_fn,
+            device=device, amp_dtype=amp_dtype, n_classes=n_classes,
+        )
+        print(f"[swa] val_loss={swa_val_loss:.4f} val_auc={swa_val_auc:.4f}")
+        swa_ckpt = {
+            "model": swa_module.state_dict(),
+            "config": cfg,
+            "fold": int(args.fold),
+            "swa_epochs": int(swa_count),
+            "val_auc": float(swa_val_auc),
+            "target_columns": list(target_columns),
+        }
+        save_checkpoint(swa_ckpt, swa_path)
+        order = np.argsort(swa_ids)
+        save_oof(
+            swa_oof_path,
+            sample_ids=swa_ids[order],
+            logits=swa_logits[order],
+            labels=swa_labels[order],
+        )
+        (out_dir / "swa_auc.txt").write_text(f"{swa_val_auc:.6f}\n")
 
     _ddp_cleanup()
 
