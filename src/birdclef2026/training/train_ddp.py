@@ -68,6 +68,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 from ..data.dataset import SEDDataset
+from ..data.samplers import DistributedWeightedSampler, sqrt_balanced_weights
 from ..data.transforms import BackgroundNoise
 from ..metadata import build_train_metadata, get_target_columns
 from ..models.losses import FocalBCEWithLogits
@@ -233,9 +234,37 @@ def _build_loaders(
     bs = int(train_cfg.get("batch_size_per_gpu", 64))
     workers = int(train_cfg.get("num_workers", 8))
 
-    train_sampler = DistributedSampler(
-        train_ds, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True
-    )
+    sampler_cfg = train_cfg.get("sampler", {}) or {}
+    sampler_kind = str(sampler_cfg.get("kind", "balanced")).lower()
+    if sampler_kind == "balanced":
+        # sqrt class-balanced weights with rare-class floor — matches BC2025
+        # 2nd Place's class_weights_path='sqrt' setup. With 234-way long tail,
+        # uniform sampling under-trains rare species and macro-AUC suffers.
+        weights = sqrt_balanced_weights(
+            train_df["primary_label"].astype(str).tolist(),
+            min_count=int(sampler_cfg.get("rare_floor", 30)),
+        )
+        train_sampler = DistributedWeightedSampler(
+            weights=weights,
+            num_samples=len(train_df),
+            num_replicas=world_size,
+            rank=rank,
+            seed=int(cfg.get("seed", 42)),
+            replacement=True,
+        )
+        if _is_main(rank):
+            n = len(train_df)
+            wmin, wmax = min(weights), max(weights)
+            print(
+                f"[sampler] balanced sqrt: n={n}, weight_range=[{wmin:.4g}, {wmax:.4g}], "
+                f"rare_floor={int(sampler_cfg.get('rare_floor', 30))}, max/min={wmax/wmin:.1f}"
+            )
+    elif sampler_kind == "uniform":
+        train_sampler = DistributedSampler(
+            train_ds, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True
+        )
+    else:
+        raise ValueError(f"unknown sampler.kind {sampler_kind!r}; use 'balanced' | 'uniform'")
     train_loader = DataLoader(
         train_ds,
         batch_size=bs,
