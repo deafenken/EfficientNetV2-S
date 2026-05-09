@@ -39,33 +39,24 @@ train:
   ema_decay: 0.999
 
 loss:
-  # NOTE: switched from BCE+Focal (1:1, α=0.25, γ=2) to BCE-only after the
-  # original recipe gave val_auc≈0.52 plateau across 3 epochs even after
-  # mel_stats / val crop / EMA-warmup / DDP fixes were in place.
+  # 2025 2nd Place exact recipe: FocalBCELoss with α=0.25, γ=2 (torchvision
+  # default), bce/focal weighted 1:1, label_smoothing=0.05 in 'positive' mode.
+  # The earlier "BCE-only + pos_weight=10" was a hack to break a trivial-zero
+  # attractor caused by NOT having a class-balanced sampler (Tier 2B). Once
+  # the sqrt-balanced sampler is in place the per-batch positive density rises
+  # enough that focal+α=0.25 works as intended (negatives 0.75 weight is fine
+  # because focal's (1-p_t)^γ already kills easy negatives).
   #
-  # Why focal hurts here: torchvision's α=0.25 weights *positives* by 0.25,
-  # negatives by 0.75 — designed for object detection where most anchors
-  # are negative, but in 234-way multi-label SED we only have ~1-3 positives
-  # per row (already 100:1 imbalance), so α=0.25 *further* suppresses the
-  # already-rare positive gradient. BirdCLEF 2024 1st place rejected focal
-  # for CE/BCE; BirdCLEF 2025 top-2% reported BCE > Focal too.
-  #
-  # If you want to revisit focal, flip α to 0.75 (or higher) so positives
-  # get the larger weight, and consider focal_weight ≤ 0.5 so BCE leads.
+  # Reference: github.com/VSydorskyy/BirdCLEF_2025_2nd_place
+  #   train_configs/selected_ebs.py — use_bce_focal_loss=True, label_smoothing=0.05,
+  #   no pos_weight, no class weights in loss (sampler does class balance).
   alpha: 0.25
   gamma: 2.0
   bce_weight: 1.0
-  focal_weight: 0.0
-  label_smoothing: 0.005
-  ls_mode: standard         # 'standard' | 'positive' | 'off'
-  # n_neg/n_pos ≈ 192:1 in 234-way val. With BCE(reduction='mean') the
-  # negative term collectively swamps the per-row positive gradient — model
-  # collapses to "predict ≈0 everywhere" (val_auc ≈ 0.5, p99 < 0.07, the
-  # diag's gap=0.004 confirmed this). pos_weight upweights the positive
-  # term inside binary_cross_entropy_with_logits to break the trivial-zero
-  # attractor. 10 is a moderate starting point (sqrt(192) ≈ 14; full
-  # balance would be 192 but tends to overshoot to "predict everything").
-  pos_weight: 10.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive         # 'standard' | 'positive' | 'off'
+  pos_weight: null          # class balance handled by sampler (Tier 2B)
 
 # Augmentation — overrides the defaults in configs/data.yaml only where needed.
 augment:
