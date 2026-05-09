@@ -397,7 +397,15 @@ def main():
 
     # ---- model ----
     n_classes = len(target_columns)
+    # Avoid 4 ranks racing to download timm pretrained weights from HF (or the
+    # hf-mirror.com CN mirror): non-zero ranks wait at the first barrier while
+    # rank 0 builds + populates ~/.cache/huggingface/hub; then everyone else
+    # builds, hitting the on-disk cache (no network).
+    if world_size > 1 and rank != 0:
+        dist.barrier()
     model = build_model_from_config(cfg, num_classes=n_classes).to(device)
+    if world_size > 1 and rank == 0:
+        dist.barrier()
 
     if world_size > 1:
         # SyncBatchNorm gives all ranks a consistent BN running mean/var.

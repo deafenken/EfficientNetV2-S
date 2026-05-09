@@ -17,7 +17,7 @@ MEL_STATS_FILES ?= 4000
 
 .PHONY: help setup-env data setup setup-pip lock download download-aux \
 	inspect debug-train train infer-fallback infer smoke \
-	folds mel-stats train-ddp \
+	folds mel-stats prefetch-weights train-ddp \
 	prepare-kaggle-kernel push-kaggle-kernel kernel-status
 
 help:
@@ -30,6 +30,8 @@ help:
 	@echo "Commit 2 training pipeline:"
 	@echo "  make folds            — build outputs/folds/folds.csv (StratifiedGroupKFold by filename)"
 	@echo "  make mel-stats        — compute outputs/stats/mel_stats.json (paste mean/std into data.yaml)"
+	@echo "  make prefetch-weights EXP=configs/exp/e01_v2s_5fold.yaml"
+	@echo "                        — single-process timm pretrained download (run before train-ddp)"
 	@echo "  make train-ddp EXP=configs/exp/e01_v2s_5fold.yaml FOLD=0"
 	@echo "                        — torchrun --nproc_per_node=\$$N for one fold"
 	@echo ""
@@ -74,6 +76,10 @@ folds:
 mel-stats:
 	PYTHONPATH=src uv run python scripts/02_compute_mel_stats.py \
 		--config $(DATA_CONFIG) --out $(MEL_STATS) --max-files $(MEL_STATS_FILES)
+
+prefetch-weights:
+	PYTHONPATH=src uv run python scripts/04_prefetch_weights.py \
+		--config $(EXP) --defaults $(DATA_CONFIG)
 
 train-ddp:
 	bash scripts/10_train.sh $(EXP) $(FOLD)
