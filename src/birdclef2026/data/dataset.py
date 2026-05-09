@@ -53,6 +53,7 @@ class SEDDataset(Dataset):
         secondary_weight: float = 0.3,
         background_noise: BackgroundNoise | None = None,
         primary_only_for_soundscape: bool = False,
+        val_n_crops: int = 1,
     ):
         if df.empty:
             raise ValueError("SEDDataset got an empty dataframe")
@@ -74,9 +75,13 @@ class SEDDataset(Dataset):
         self.secondary_weight = float(secondary_weight)
         self.background_noise = background_noise if training else None
         self.primary_only_for_soundscape = bool(primary_only_for_soundscape)
+        # Val multi-crop: emit K uniformly-spaced 5s windows per recording so
+        # downstream val averaging matches the inference sliding-window pattern.
+        # Forced to 1 in train mode (random crop already gives diverse windows).
+        self.val_n_crops = max(1, int(val_n_crops)) if not self.training else 1
 
     def __len__(self) -> int:
-        return len(self.df)
+        return len(self.df) * self.val_n_crops
 
     # ------------------------------------------------------------------ #
     # core: load + crop + multi-hot target.
@@ -87,7 +92,8 @@ class SEDDataset(Dataset):
     _MAX_LOAD_RETRIES = 3
 
     def _load_raw(
-        self, idx: int, *, _retries_left: int | None = None
+        self, idx: int, *, _retries_left: int | None = None,
+        val_crop_idx: int | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict]:
         if _retries_left is None:
             _retries_left = self._MAX_LOAD_RETRIES
@@ -99,7 +105,10 @@ class SEDDataset(Dataset):
                 new_idx = int(torch.randint(0, len(self.df), (1,)).item())
                 if new_idx == idx:
                     new_idx = (idx + 1) % len(self.df)
-                return self._load_raw(new_idx, _retries_left=_retries_left - 1)
+                return self._load_raw(
+                    new_idx, _retries_left=_retries_left - 1,
+                    val_crop_idx=val_crop_idx,
+                )
             waveform = torch.zeros(self.length_samples, dtype=torch.float32)
 
         end_time = row["end_time"]
@@ -115,14 +124,27 @@ class SEDDataset(Dataset):
                 waveform, self.length_samples, random_crop=True,
             )
         else:
-            # Val: train_audio rows have no end_time annotation. Defaulting
-            # to start_sample=0 (first 5s) means val never sees the bird call
-            # for recordings where it occurs later — collapsing val_auc to
-            # ~0.50 even when the model is learning fine. Center-crop is a
-            # better single-window heuristic; multi-crop averaging will be a
-            # follow-up if needed.
+            # Val: train_audio rows have no end_time annotation. With
+            # val_n_crops=K>1 we deterministically pick the val_crop_idx-th
+            # of K uniformly-spaced 5s windows along the recording, so the
+            # outer loop covers the full clip and validate() can average per
+            # recording (matches inference sliding-window). Falls back to
+            # center crop when K=1.
             n = waveform.numel()
-            start = max(0, (n - self.length_samples) // 2) if n > self.length_samples else 0
+            length = self.length_samples
+            if n <= length:
+                start = 0
+            elif self.val_n_crops > 1 and val_crop_idx is not None:
+                k = self.val_n_crops
+                # k offsets in [0, n - length]; for k=1 collapse to center.
+                if k == 1:
+                    start = max(0, (n - length) // 2)
+                else:
+                    span = n - length
+                    start = int(round(val_crop_idx * span / (k - 1)))
+                start = max(0, min(start, n - length))
+            else:
+                start = max(0, (n - length) // 2)
             waveform = crop_or_pad(
                 waveform, self.length_samples, random_crop=False,
                 start_sample=start,
@@ -176,6 +198,12 @@ class SEDDataset(Dataset):
     # background_noise once at the end so we don't double-stack noise.
     # ------------------------------------------------------------------ #
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, dict]:
+        # Val multi-crop: outer index is row * val_n_crops + crop_idx.
+        if not self.training and self.val_n_crops > 1:
+            row_idx = idx // self.val_n_crops
+            crop_idx = idx % self.val_n_crops
+            return self._load_raw(row_idx, val_crop_idx=crop_idx)
+
         do_mixup = (
             self.training
             and self.mixup_p > 0

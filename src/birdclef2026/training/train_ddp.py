@@ -227,6 +227,7 @@ def _build_loaders(
         mixup_p=0.0,
         secondary_weight=float(cfg.get("data", {}).get("secondary_weight", 0.3)),
         background_noise=None,
+        val_n_crops=int(train_cfg.get("val_n_crops", 5)),
     )
 
     bs = int(train_cfg.get("batch_size_per_gpu", 64))
@@ -358,9 +359,34 @@ def validate(
         n_batches += 1
     logits_np = np.concatenate(all_logits, axis=0)
     labels_np = np.concatenate(all_labels, axis=0)
+    ids_arr = np.asarray(all_ids)
     val_loss = running_loss / max(1, n_batches)
-    val_auc = macro_auc(labels_np, _sigmoid(logits_np))
-    return val_loss, val_auc, np.asarray(all_ids), logits_np, labels_np
+
+    # Multi-crop aggregation: when val_n_crops>1 each recording produces K
+    # rows. Group by sample_id and average sigmoid probabilities (matches
+    # the inference sliding-window pattern); labels are recording-level so
+    # they collapse trivially. With K=1 this is a no-op aside from sorting.
+    unique_ids, inverse = np.unique(ids_arr, return_inverse=True)
+    n_recordings = len(unique_ids)
+    n_classes_local = logits_np.shape[1]
+    probs_np = _sigmoid(logits_np)
+    agg_probs = np.zeros((n_recordings, n_classes_local), dtype=np.float64)
+    agg_labels = np.zeros((n_recordings, n_classes_local), dtype=labels_np.dtype)
+    counts = np.zeros(n_recordings, dtype=np.int64)
+    for i, gid in enumerate(inverse):
+        agg_probs[gid] += probs_np[i]
+        agg_labels[gid] = labels_np[i]
+        counts[gid] += 1
+    agg_probs /= counts[:, None]
+
+    val_auc = macro_auc(agg_labels, agg_probs)
+    # Save the averaged probabilities (in logit space, for OOF stacking
+    # parity with the legacy single-crop path) and dedup'd ids/labels.
+    eps = 1e-7
+    agg_logits = np.log(np.clip(agg_probs, eps, 1.0 - eps)) - np.log(
+        np.clip(1.0 - agg_probs, eps, 1.0 - eps)
+    )
+    return val_loss, val_auc, unique_ids, agg_logits.astype(np.float32), agg_labels
 
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:
