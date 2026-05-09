@@ -113,13 +113,20 @@ class SEDModel(nn.Module):
         random_filter_kwargs: Optional[dict] = None,
         head_dropout: float = 0.5,
         pretrained: bool = True,
+        pretrained_backbone_path: Optional[str] = None,
+        backbone_in_chans: int = 1,
     ):
         super().__init__()
         self.num_classes = int(num_classes)
 
         # Body
         if isinstance(backbone, str):
-            self.backbone = create_backbone(backbone, pretrained=pretrained)
+            self.backbone = create_backbone(
+                backbone,
+                pretrained=pretrained,
+                in_chans=backbone_in_chans,
+                pretrained_state_dict_path=pretrained_backbone_path,
+            )
         else:
             self.backbone = backbone
 
@@ -184,4 +191,6 @@ def build_model_from_config(cfg: dict, num_classes: int) -> SEDModel:
         random_filter_kwargs=rand_filt_kwargs,
         head_dropout=float(model_cfg.get("head_dropout", 0.5)),
         pretrained=bool(model_cfg.get("pretrained", True)),
+        pretrained_backbone_path=model_cfg.get("pretrained_backbone_path"),
+        backbone_in_chans=int(model_cfg.get("backbone_in_chans", 1)),
     )

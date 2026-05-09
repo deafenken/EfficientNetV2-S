@@ -18,8 +18,15 @@
 
 model:
   name: tf_efficientnetv2_s.in21k_ft_in1k
-  pretrained: true
+  pretrained: true                # ImageNet warm-start (averaged into 1-ch stem)
   head_dropout: 0.5
+  backbone_in_chans: 1            # match Sydorskyy's 1-channel stem
+  # Bird-domain pretrained backbone — Sydorskyy's BC2025 2nd Place public
+  # release, pretrained on BC 2021-2024 + Xeno-Canto + iNaturalist (~7544
+  # classes). Drop-in for `tf_efficientnetv2_s.in21k_ft_in1k` w/ in_chans=1.
+  # Kaggle: vladimirsydor/bird-clef-2025-all-pretrained-models
+  # Set to null to fall back to plain ImageNet warm-start.
+  pretrained_backbone_path: data/aux/pretrained/v2s_bc2024_pretrain.pth
 
 optim:
   name: adamw
