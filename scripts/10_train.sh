@@ -33,6 +33,12 @@ DEFAULTS="${DEFAULTS:-configs/data.yaml}"
 # was tried first but shell-quoting the comma-containing message regex was
 # fragile, so we moved the filter into Python code where it belongs.
 
+# Pin OMP_NUM_THREADS so torchrun stops printing its "Setting OMP_NUM_THREADS
+# ... to be 1 in default" advisory. 1 matches torchrun's default and is fine
+# for our workload (heavy lifting is GPU; DataLoader workers handle CPU IO).
+# Override via the env if you ever want intra-op CPU parallelism.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
+
 echo "[train] exp=$EXP_YAML fold=$FOLD nproc=$NPROC defaults=$DEFAULTS"
 
 PYTHONPATH=src exec uv run torchrun \
