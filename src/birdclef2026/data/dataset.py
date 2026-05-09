@@ -108,9 +108,24 @@ class SEDDataset(Dataset):
                 waveform, self.sample_rate, self.clip_seconds,
                 end_time=float(end_time), random_crop=False,
             )
-        else:
+        elif self.training:
+            # Train: random crop somewhere along the clip — gives the model
+            # diverse windows including the bird call.
             waveform = crop_or_pad(
-                waveform, self.length_samples, random_crop=self.training,
+                waveform, self.length_samples, random_crop=True,
+            )
+        else:
+            # Val: train_audio rows have no end_time annotation. Defaulting
+            # to start_sample=0 (first 5s) means val never sees the bird call
+            # for recordings where it occurs later — collapsing val_auc to
+            # ~0.50 even when the model is learning fine. Center-crop is a
+            # better single-window heuristic; multi-crop averaging will be a
+            # follow-up if needed.
+            n = waveform.numel()
+            start = max(0, (n - self.length_samples) // 2) if n > self.length_samples else 0
+            waveform = crop_or_pad(
+                waveform, self.length_samples, random_crop=False,
+                start_sample=start,
             )
 
         target = self._multi_hot(row)
