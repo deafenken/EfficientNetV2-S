@@ -63,7 +63,16 @@ loss:
   focal_weight: 1.0
   label_smoothing: 0.05
   ls_mode: positive         # 'standard' | 'positive' | 'off'
-  pos_weight: null          # class balance handled by sampler (Tier 2B)
+  # pos_weight=5 — head bootstrap. Even with the bird-pretrained backbone
+  # giving good features, our AttHead (fix_scale + attention Conv1d) is
+  # randomly initialized; BCE(reduction='mean') on 234 classes dilutes the
+  # per-class positive gradient to ~1/234 of full strength, so the head
+  # gets stuck in a trivial-zero attractor (val_auc≈0.51 at e0 even with
+  # the warm backbone, observed empirically). pos_weight=5 amplifies the
+  # positive gradient back to a learnable magnitude. Lower than the old
+  # pos_weight=10 because the warm backbone + sampler + focal already do
+  # most of the heavy lifting; 5 is just the bootstrap kick.
+  pos_weight: 5.0
 
 # Augmentation — overrides the defaults in configs/data.yaml only where needed.
 augment:
