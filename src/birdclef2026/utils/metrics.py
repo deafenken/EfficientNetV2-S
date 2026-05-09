@@ -32,10 +32,14 @@ def macro_auc(
     y_score = np.asarray(y_score)
     if y_true.shape != y_score.shape:
         raise ValueError(f"shape mismatch: y_true {y_true.shape} vs y_score {y_score.shape}")
-    n_classes = y_true.shape[1]
+    # ROC-AUC needs binary labels. Our dataset emits soft secondary labels
+    # (e.g. 0.3) for the secondary_labels column — treat any positive value as
+    # a positive class for evaluation. Hard 0/1 labels pass through unchanged.
+    y_true_bin = (y_true > 0).astype(np.int8)
+    n_classes = y_true_bin.shape[1]
     per_class = np.full(n_classes, np.nan, dtype=np.float64)
     for c in range(n_classes):
-        col = y_true[:, c]
+        col = y_true_bin[:, c]
         if col.min() != col.max():
             per_class[c] = roc_auc_score(col, y_score[:, c])
     valid = per_class[~np.isnan(per_class)]
