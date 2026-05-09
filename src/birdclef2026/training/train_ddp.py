@@ -46,6 +46,16 @@ warnings.filterwarnings(
     message=r"In 2\.9, this function's implementation will be changed",
     category=UserWarning,
 )
+# SequentialLR(LinearLR, CosineAnnealingLR) internally calls
+# child_scheduler.step(epoch=...) at milestone transitions, tripping
+# torch's own deprecation warning ("The epoch parameter in
+# `scheduler.step()` was not necessary..."). It's an upstream torch issue,
+# not ours; silence it so it doesn't spam every step.
+warnings.filterwarnings(
+    "ignore",
+    message=r"The epoch parameter in `scheduler\.step\(\)` was not necessary",
+    category=UserWarning,
+)
 
 import numpy as np
 import pandas as pd
