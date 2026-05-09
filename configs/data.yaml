@@ -22,6 +22,14 @@ data:
   include_train_audio: true
   include_train_soundscapes: false   # turn on once R1 pseudo-labels are produced
   secondary_weight: 0.3
+  # Train crop strategy for train_audio (which has end_time=NaN):
+  #   'head_tail' — random within first/last N s (50/50). XC recordings tend
+  #                 to have the bird call near start or end; this biases the
+  #                 model toward frames that actually contain calls. (BC2024 1st)
+  #   'random'    — uniform random over full clip (legacy; wastes samples on
+  #                 silent middles of long recordings).
+  crop_strategy: head_tail
+  crop_anchor_seconds: 6.0
 
 # log-mel + global normalization (filled from outputs/stats/mel_stats.json by training).
 audio:

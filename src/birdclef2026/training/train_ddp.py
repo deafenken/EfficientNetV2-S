@@ -207,6 +207,9 @@ def _build_loaders(
     sample_rate = int(audio_cfg.get("sample_rate", 32000))
     clip_seconds = float(audio_cfg.get("clip_seconds", 5.0))
 
+    data_cfg = cfg.get("data", {}) or {}
+    crop_strategy = str(data_cfg.get("crop_strategy", "head_tail"))
+    crop_anchor_seconds = float(data_cfg.get("crop_anchor_seconds", 6.0))
     train_ds = SEDDataset(
         df=train_df,
         target_columns=target_columns,
@@ -216,8 +219,10 @@ def _build_loaders(
         mixup_p=float(mixup_cfg.get("p", 0.5)),
         mixup_alpha=mixup_cfg.get("alpha"),
         mixup_target_aggregation=str(mixup_cfg.get("target_aggregation", "sum")),
-        secondary_weight=float(cfg.get("data", {}).get("secondary_weight", 0.3)),
+        secondary_weight=float(data_cfg.get("secondary_weight", 0.3)),
         background_noise=bg_noise,
+        crop_strategy=crop_strategy,
+        crop_anchor_seconds=crop_anchor_seconds,
     )
     val_ds = SEDDataset(
         df=val_df,

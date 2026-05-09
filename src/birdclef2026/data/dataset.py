@@ -54,6 +54,8 @@ class SEDDataset(Dataset):
         background_noise: BackgroundNoise | None = None,
         primary_only_for_soundscape: bool = False,
         val_n_crops: int = 1,
+        crop_strategy: str = "head_tail",
+        crop_anchor_seconds: float = 6.0,
     ):
         if df.empty:
             raise ValueError("SEDDataset got an empty dataframe")
@@ -79,6 +81,20 @@ class SEDDataset(Dataset):
         # downstream val averaging matches the inference sliding-window pattern.
         # Forced to 1 in train mode (random crop already gives diverse windows).
         self.val_n_crops = max(1, int(val_n_crops)) if not self.training else 1
+        # Train crop strategy:
+        #   'random'    — uniform random start over the full clip (legacy)
+        #   'head_tail' — random within first N s OR last N s (50/50);
+        #                 BC2024 1st place's trick — XC recordings tend to
+        #                 have the bird call near start or end, with silence
+        #                 in the middle. 'head_tail' biases the model toward
+        #                 frames that actually contain calls.
+        kind = str(crop_strategy).lower()
+        if kind not in ("random", "head_tail"):
+            raise ValueError(
+                f"crop_strategy must be 'random' | 'head_tail', got {crop_strategy!r}"
+            )
+        self.crop_strategy = kind
+        self.crop_anchor_samples = int(round(float(crop_anchor_seconds) * self.sample_rate))
 
     def __len__(self) -> int:
         return len(self.df) * self.val_n_crops
@@ -118,11 +134,35 @@ class SEDDataset(Dataset):
                 end_time=float(end_time), random_crop=False,
             )
         elif self.training:
-            # Train: random crop somewhere along the clip — gives the model
-            # diverse windows including the bird call.
-            waveform = crop_or_pad(
-                waveform, self.length_samples, random_crop=True,
-            )
+            n = waveform.numel()
+            L = self.length_samples
+            if self.crop_strategy == "head_tail" and n > L:
+                anchor = self.crop_anchor_samples
+                if n <= anchor:
+                    # Whole clip already shorter than the head/tail anchor —
+                    # head and tail regions overlap, just sample uniformly.
+                    start = int(torch.randint(0, n - L + 1, (1,)).item())
+                else:
+                    # Two disjoint regions: [0, anchor] and [n - anchor, n].
+                    # Within each, valid starts span (anchor - L) samples.
+                    head_max = anchor - L
+                    if head_max < 0:
+                        # Anchor smaller than clip length — fall back to
+                        # uniform random over the full clip.
+                        start = int(torch.randint(0, n - L + 1, (1,)).item())
+                    elif torch.rand(1).item() < 0.5:
+                        start = int(torch.randint(0, head_max + 1, (1,)).item())
+                    else:
+                        offset = int(torch.randint(0, head_max + 1, (1,)).item())
+                        start = (n - anchor) + offset
+                waveform = crop_or_pad(
+                    waveform, L, random_crop=False, start_sample=start,
+                )
+            else:
+                # 'random' strategy or clip <= L (will be padded).
+                waveform = crop_or_pad(
+                    waveform, L, random_crop=True,
+                )
         else:
             # Val: train_audio rows have no end_time annotation. With
             # val_n_crops=K>1 we deterministically pick the val_crop_idx-th
