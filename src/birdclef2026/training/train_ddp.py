@@ -434,6 +434,22 @@ def main():
                     f"[mel] auto-loaded global stats from {mel_stats_path}: "
                     f"mean={audio_cfg['global_mean']:.4f} std={audio_cfg['global_std']:.4f}"
                 )
+                # Real log-mel values live around mean≈-30 dB, std≈10-20.
+                # mean≈0 and std≈1 means the stats were computed on already-
+                # normalized output (the pre-fix bug in 02_compute_mel_stats.py).
+                # Don't silently train on garbage — fail loud.
+                if (
+                    abs(audio_cfg["global_mean"]) < 1.0
+                    and abs(audio_cfg["global_std"] - 1.0) < 0.1
+                ):
+                    raise RuntimeError(
+                        f"{mel_stats_path} looks already-normalized "
+                        f"(mean={audio_cfg['global_mean']:.4f}, "
+                        f"std={audio_cfg['global_std']:.4f}). This is the symptom "
+                        f"of the pre-fix bug in scripts/02_compute_mel_stats.py — "
+                        f"delete the file and re-run `make mel-stats` after pulling "
+                        f"the latest code."
+                    )
         else:
             if _is_main(rank):
                 print(

@@ -133,6 +133,7 @@ class LogMel(torch.nn.Module):
         top_db: float = 80.0,  # noqa: ARG002
         global_mean: Optional[float] = None,
         global_std: Optional[float] = None,
+        normalize: bool = True,
     ):
         super().__init__()
         self.mel = torchaudio.transforms.MelSpectrogram(
@@ -146,6 +147,7 @@ class LogMel(torch.nn.Module):
             normalized=False,
         )
         self.amin = float(amin)
+        self.normalize = bool(normalize)
         self.has_global = global_mean is not None and global_std is not None
         if self.has_global:
             self.register_buffer("global_mean", torch.tensor(float(global_mean)))
@@ -159,8 +161,18 @@ class LogMel(torch.nn.Module):
                 wav = wav.unsqueeze(0)  # (1, T)
             mel = self.mel(wav)                              # power-mel, ≥ 0
             mel = 10.0 * torch.log10(mel.clamp_min(self.amin))
+            if not self.normalize:
+                # Raw log-mel — used by scripts/02_compute_mel_stats.py to
+                # accumulate honest dataset statistics. Don't ship a model
+                # with normalize=False at training time.
+                return mel
             if self.has_global:
                 mel = (mel - self.global_mean) / self.global_std
             else:
+                # Per-tensor (NOT per-sample) fallback — destroys absolute
+                # energy info, batch-composition-dependent, and was the
+                # source of bogus mel_stats.json output (mean≈0, std≈1).
+                # Only intended for smoke tests; production must run
+                # `make mel-stats` first.
                 mel = (mel - mel.mean()) / mel.std().clamp_min(1e-6)
         return mel

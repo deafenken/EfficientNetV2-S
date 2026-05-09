@@ -57,6 +57,11 @@ def main() -> None:
         rows = rows[: args.max_files]
     print(f"[info] computing mel stats over {len(rows):,} files (sr={sr}, clip={sec}s)")
 
+    # CRITICAL: pass normalize=False so we get raw log-mel values out of
+    # LogMel.forward. With normalize=True (default) and no global stats,
+    # LogMel falls back to per-tensor (mel - mel.mean()) / mel.std(), which
+    # makes every file mean=0/std=1 — accumulating those gives the bogus
+    # mean≈0/std≈1 stats we observed before this fix.
     mel = LogMel(
         sample_rate=sr,
         n_fft=int(audio_cfg.get("n_fft", 2048)),
@@ -67,6 +72,7 @@ def main() -> None:
         top_db=float(audio_cfg.get("top_db", 80.0)),
         global_mean=None,
         global_std=None,
+        normalize=False,
     )
 
     # Vectorized two-pass: accumulate sum / sum_sq in float64.
