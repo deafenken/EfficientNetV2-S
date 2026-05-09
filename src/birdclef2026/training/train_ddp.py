@@ -31,8 +31,21 @@ import argparse
 import json
 import os
 import time
+import warnings
 from pathlib import Path
 from typing import Sequence
+
+# Silence the torchaudio 2.8→2.9 `load_with_torchcodec` deprecation. The
+# previous `PYTHONWARNINGS=ignore::UserWarning:torchaudio` env trick failed
+# because Python's warning filter `module` field matches the *caller's*
+# __name__ (here: birdclef2026.data.dataset), not torchaudio. Match by message
+# regex instead, applied before torchaudio is imported transitively. fork-mode
+# DataLoader workers inherit this filter automatically.
+warnings.filterwarnings(
+    "ignore",
+    message=r"In 2\.9, this function's implementation will be changed",
+    category=UserWarning,
+)
 
 import numpy as np
 import pandas as pd

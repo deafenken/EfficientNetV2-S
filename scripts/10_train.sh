@@ -28,11 +28,10 @@ NPROC="${NPROC:-$(nvidia-smi -L 2>/dev/null | wc -l)}"
 NPROC="${NPROC:-1}"
 DEFAULTS="${DEFAULTS:-configs/data.yaml}"
 
-# Silence the torchaudio 2.8→2.9 `load_with_torchcodec` deprecation spam.
-# It fires once per torchaudio.load() call → workers × ranks → screenfuls of noise.
-# The message is informational only; remove this line if you want to track the
-# deprecation again.
-export PYTHONWARNINGS="${PYTHONWARNINGS:-ignore::UserWarning:torchaudio}"
+# Note: torchaudio 2.8→2.9 deprecation warning is silenced inside
+# train_ddp.py (warnings.filterwarnings in module top). PYTHONWARNINGS env
+# was tried first but shell-quoting the comma-containing message regex was
+# fragile, so we moved the filter into Python code where it belongs.
 
 echo "[train] exp=$EXP_YAML fold=$FOLD nproc=$NPROC defaults=$DEFAULTS"
 
