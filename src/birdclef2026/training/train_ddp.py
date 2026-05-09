@@ -380,6 +380,24 @@ def validate(
     agg_probs /= counts[:, None]
 
     val_auc = macro_auc(agg_labels, agg_probs)
+    # Diagnostic: distribution of per-class probabilities and label rates.
+    # If model collapsed to "predict ~0 everywhere", probs p99 will be near
+    # 0 and pos_recall (mean prob on positives - mean prob on negatives) will
+    # be near 0; if it's actually learning, the gap should grow each epoch.
+    pos_mask = (agg_labels > 0).astype(bool)
+    n_pos = int(pos_mask.sum())
+    n_neg = int((~pos_mask).sum())
+    mean_pos = float(agg_probs[pos_mask].mean()) if n_pos else float("nan")
+    mean_neg = float(agg_probs[~pos_mask].mean()) if n_neg else float("nan")
+    p_pcts = np.percentile(agg_probs.flatten(), [50, 90, 99, 99.9])
+    print(
+        f"[diag] probs p50={p_pcts[0]:.4f} p90={p_pcts[1]:.4f} "
+        f"p99={p_pcts[2]:.4f} p99.9={p_pcts[3]:.4f} | "
+        f"mean_on_pos={mean_pos:.4f} mean_on_neg={mean_neg:.4f} "
+        f"gap={mean_pos - mean_neg:.4f} "
+        f"(n_pos={n_pos}, n_neg={n_neg})"
+    )
+
     # Save the averaged probabilities (in logit space, for OOF stacking
     # parity with the legacy single-crop path) and dedup'd ids/labels.
     eps = 1e-7
