@@ -79,11 +79,21 @@ from .ema import ModelEMA
 def _ddp_setup() -> tuple[int, int, int]:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
-    if world_size > 1:
-        dist.init_process_group(backend="nccl")
-    rank = dist.get_rank() if dist.is_initialized() else 0
+    # Pin this process to its GPU *before* init_process_group, and pass the
+    # device explicitly via device_id=. Otherwise NCCL can't tell which GPU
+    # this rank owns at init time and emits a warning per rank ("using GPU N
+    # as device used by this process is currently unknown ... can potentially
+    # cause a hang"). Same fix silences the matching `barrier` warning.
+    device_id = None
     if torch.cuda.is_available():
         torch.cuda.set_device(local_rank)
+        device_id = torch.device("cuda", local_rank)
+    if world_size > 1:
+        if device_id is not None:
+            dist.init_process_group(backend="nccl", device_id=device_id)
+        else:
+            dist.init_process_group(backend="nccl")
+    rank = dist.get_rank() if dist.is_initialized() else 0
     return rank, world_size, local_rank
 
 
