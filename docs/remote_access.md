@@ -91,3 +91,32 @@ Ivanti 单会话被人顶掉，不是我的 ssh 引起的。处理顺序：
 ## 长期方案（可选）
 
 如果想完全摆脱 Ivanti 单会话的折腾：在 target-server 上也装 tailscale 客户端，加进同一个 tailnet，VPS 就能直连 target-server，整条链缩成两跳，且不依赖 Ivanti。
+
+## VPS 端 tmux 缓存：`rmt` 包装器
+
+每次 ssh 链都重握 3 次手太慢（~3-4s/次），所以在 VPS 上常驻一个 tmux session
+名为 `remote`，里面挂着已经打通的三跳 shell。后续命令通过 `tmux send-keys`
+注入 + marker 等待 + `tmux capture-pane` 抓输出，单次 < 0.5s。
+
+### 工具
+- 脚本：`~/.local/bin/rmt`（仅 VPS 上有，未提交到 repo —— Claude 工作环境的一部分）
+- 名字避开 zsh 内建别名 `r`（zsh 里 `r` ≡ `fc -e -`）
+
+### 子命令
+| 子命令 | 用途 |
+|---|---|
+| `rmt up` | 幂等创建 session 并建链（VPS → WSL → target-server → docker） |
+| `rmt run "<cmd>"` | 发送命令、等待完成、打印输出（默认上限 5 min，可 `R_TIMEOUT=...` 覆盖） |
+| `rmt tail [N]` | 看当前 pane 最后 N 行（默认 40），不发送命令 |
+| `rmt attach` | 你接管 session 看实时输出，Ctrl+B D detach 还给 Claude |
+| `rmt down` | kill session（链断了重来时用） |
+
+### 状态约定
+- Shell 状态（cwd / env / 半成品输入）跨命令保留 —— 单次命令尽量自包含。
+- Ivanti 被踢 / 容器重启 / WSL 重启 → 链失效，`rmt down && rmt up` 重建。
+- `rmt run` 内部用唯一的 START/END marker 做输出边界，与 prompt echo / 历史
+  记录隔离。
+
+### Claude 权限
+`.claude/settings.local.json` 里把 `Bash(rmt *)` 和 `Bash(tmux *)` 加进
+`permissions.allow`，自动模式不再每次提示。
