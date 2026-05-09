@@ -165,6 +165,52 @@ def build_train_metadata(data_root, config, target_columns):
                         }
                     )
 
+    # Pseudo-label R1: rows produced by predict_pseudo.py over the unlabeled
+    # soundscape recordings. CSV columns: filename, end_time, primary_label,
+    # secondary_labels (space-separated), prob_primary. Treat them like
+    # train_soundscapes (window-level end_time, primary=1.0 + secondary at
+    # secondary_weight) with source="train_soundscapes_pseudo" so the sampler
+    # can optionally down-weight them. Rows whose primary is "nocall" or below
+    # `pseudo_min_prob` (if set) are dropped.
+    pseudo_csv_path = data_cfg.get("pseudo_label_csv")
+    if pseudo_csv_path:
+        pseudo_path = Path(pseudo_csv_path)
+        if not pseudo_path.is_absolute():
+            pseudo_path = data_root / pseudo_path
+        soundscape_dir = data_root / paths.get("train_soundscapes", "train_soundscapes")
+        pseudo_df = _read_csv(pseudo_path)
+        if pseudo_df is not None and "primary_label" in pseudo_df.columns:
+            min_prob = float(data_cfg.get("pseudo_min_prob", 0.0))
+            kept = 0
+            for _, row in pseudo_df.iterrows():
+                primary_raw = str(row.get("primary_label", "")).strip()
+                if primary_raw.lower() in NO_CALLS:
+                    continue
+                prob = float(row.get("prob_primary", 1.0)) if "prob_primary" in pseudo_df.columns else 1.0
+                if prob < min_prob:
+                    continue
+                raw_labels = [primary_raw]
+                if "secondary_labels" in pseudo_df.columns:
+                    raw_labels.extend(_split_label_cell(row.get("secondary_labels")))
+                labels = map_labels(raw_labels, mapper, target_columns)
+                if not labels:
+                    continue
+                primary = primary_raw if primary_raw in labels else labels[0]
+                filename = str(row.get("filename", "")).strip()
+                end_time = row.get("end_time", np.nan)
+                if filename:
+                    rows.append(
+                        {
+                            "path": str(soundscape_dir / filename),
+                            "filename": filename,
+                            "labels": labels,
+                            "primary_label": primary,
+                            "source": "train_soundscapes_pseudo",
+                            "end_time": end_time,
+                        }
+                    )
+                    kept += 1
+
     df = pd.DataFrame(rows)
     if not df.empty:
         df = df[df["path"].map(lambda p: Path(p).exists())].reset_index(drop=True)

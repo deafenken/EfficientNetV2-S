@@ -22,6 +22,14 @@ data:
   include_train_audio: true
   include_train_soundscapes: false   # turn on once R1 pseudo-labels are produced
   secondary_weight: 0.3
+  # Pseudo-label R1: path to CSV produced by
+  # ``python -m birdclef2026.inference.predict_pseudo`` (relative to data_root
+  # or absolute). Each row becomes a soundscape window with primary=1.0 and
+  # secondary at secondary_weight, source="train_soundscapes_pseudo".
+  # ``pseudo_min_prob`` filters rows whose ``prob_primary`` is below the
+  # threshold (defaults to 0 — keep everything the predict script wrote).
+  pseudo_label_csv: null
+  pseudo_min_prob: 0.0
   # Train crop strategy for train_audio (which has end_time=NaN):
   #   'head_tail' — random within first/last N s (50/50). XC recordings tend
   #                 to have the bird call near start or end; this biases the
