@@ -1,12 +1,15 @@
-"""Inference, ensemble blending, and submission generation.
+"""Inference, ensemble blending, and submission generation (Commit 3).
 
-Filled in Commit 2:
-- ``predict_oof.py``     — per-fold OOF prediction with TTA hooks
-- ``predict_test.py``    — test-soundscape prediction (Kaggle CPU path)
-- ``ensemble.py``        — Quantile-Mix(α=0.5) + power calibration + TopN postproc
-- ``make_submission.py`` — sample-submission-aligned CSV writer
-- ``export_onnx.py``     — checkpoint → ONNX → OpenVINO (INT8/FP16)
+Filled:
+- ``predict.py``       — sliding-window test inference + N-checkpoint ensemble.
+- ``assemble_oof.py``  — concat per-fold ``oof.npz`` (or ``swa_oof.npz``)
+                         into a single cross-validated OOF + macro-AUC.
 
-The legacy flat module ``birdclef2026.infer`` stays at the package root
-and is invoked by ``make infer`` / ``make infer-fallback`` until superseded.
+Planned (Commit 3 follow-ups):
+- ``ensemble.py``      — multi-arch / weighted blend across exp dirs.
+- ``pseudo_label.py``  — generate soft labels on train_soundscapes from OOF.
+
+The legacy flat module ``birdclef2026.infer`` is retained at package root
+for the old ``make infer-fallback`` path; new code should import from
+``birdclef2026.inference``.
 """

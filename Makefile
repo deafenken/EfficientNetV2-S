@@ -18,6 +18,7 @@ MEL_STATS_FILES ?= 4000
 .PHONY: help setup-env data setup setup-pip lock download download-aux \
 	inspect debug-train train infer-fallback infer smoke \
 	folds mel-stats prefetch-weights train-ddp \
+	predict assemble-oof \
 	prepare-kaggle-kernel push-kaggle-kernel kernel-status
 
 help:
@@ -34,6 +35,12 @@ help:
 	@echo "                        — single-process timm pretrained download (run before train-ddp)"
 	@echo "  make train-ddp EXP=configs/exp/e01_v2s_5fold.yaml FOLD=0"
 	@echo "                        — torchrun --nproc_per_node=\$$N for one fold"
+	@echo ""
+	@echo "Commit 3 inference / submission:"
+	@echo "  make assemble-oof EXP_DIR=outputs/exp/e01_v2s_5fold KIND=swa"
+	@echo "                        — concat fold_*/swa_oof.npz → exp_dir/swa_oof.npz + AUC"
+	@echo "  make predict EXP_DIR=outputs/exp/e01_v2s_5fold CKPT=swa.pt OUTPUT=submission.csv"
+	@echo "                        — sliding-window test inference + N-fold ensemble"
 	@echo ""
 	@echo "Legacy single-process baseline (kept for now):"
 	@echo "  debug-train / train   — python -m birdclef2026.train"
@@ -83,6 +90,21 @@ prefetch-weights:
 
 train-ddp:
 	bash scripts/10_train.sh $(EXP) $(FOLD)
+
+# ---- Commit 3 inference + submission ----
+EXP_DIR ?= outputs/exp/e01_v2s_5fold
+CKPT ?= swa.pt
+KIND ?= swa
+OUTPUT ?= submission.csv
+
+assemble-oof:
+	PYTHONPATH=src uv run python -m birdclef2026.inference.assemble_oof \
+		--exp-dir $(EXP_DIR) --kind $(KIND)
+
+predict:
+	PYTHONPATH=src uv run python -m birdclef2026.inference.predict \
+		--exp-dir $(EXP_DIR) --ckpt-name $(CKPT) \
+		--defaults $(DATA_CONFIG) --output $(OUTPUT)
 
 # ---- legacy single-process baseline (kept until Commit 2 supersedes) ----
 inspect:
