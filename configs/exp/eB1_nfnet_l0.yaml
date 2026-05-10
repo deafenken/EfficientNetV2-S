@@ -1,0 +1,45 @@
+# eB1 — Direction B (architecture exploration), trial 1: ECA-NFNet-L0.
+#
+# Apples-to-V2-S: same e01 baseline config, only `model.name` swapped. No
+# BC2024 pretrained ckpt for NFNet, so `pretrained_backbone_path: null` —
+# falls back to timm ImageNet warm-start (96.6 MB safetensors). num_features=2304.
+#
+# Hypothesis: NFNet's normalizer-free + ECA channel attention may capture
+# bird call timbre better than V2-S MBConv stack. Used by some BC top finishers.
+
+model:
+  name: eca_nfnet_l0
+  pretrained: true
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  pretrained_backbone_path: null    # no BC2024 ckpt for NFNet
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  amp_dtype: bf16
+  grad_clip: 1.0
+  ema_decay: 0.999
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  background_noise:
+    enabled: false

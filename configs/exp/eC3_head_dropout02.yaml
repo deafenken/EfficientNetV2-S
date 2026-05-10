@@ -1,0 +1,45 @@
+# eC3 — Direction C trial 3: head_dropout=0.2 (single-knob ablation vs e01).
+#
+# e01 has head_dropout=0.5 (→ 0.25 in dense layer 1, 0.5 in layer 2 per
+# AttHead's nn.Dropout(dropout/2)/nn.Dropout(dropout) pattern). On a 0.9M
+# AttHead with 234-class output, 0.5 dropout may over-regularize and cause
+# under-fitting (val_loss flat in cosine tail of e01: 0.0809 → 0.0808 over
+# last 10 epochs). 0.2 should let the head fit its capacity better while
+# still preventing late-stage overfit. If SWA improves, head was bottlenecked.
+
+model:
+  name: tf_efficientnetv2_s.in21k_ft_in1k
+  pretrained: true
+  head_dropout: 0.2    # ABLATION (default 0.5)
+  backbone_in_chans: 1
+  pretrained_backbone_path: data/aux/pretrained/v2s_bc2024_pretrain.pth
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  amp_dtype: bf16
+  grad_clip: 1.0
+  ema_decay: 0.999
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  background_noise:
+    enabled: false

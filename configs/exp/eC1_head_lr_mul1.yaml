@@ -1,0 +1,45 @@
+# eC1 — Direction C trial 1: head_lr_mul=1.0 (single-knob ablation vs e01).
+#
+# e01 baseline has head_lr_mul=3.0 (default in train_ddp.py). Hypothesis:
+# 3× head LR over backbone is too aggressive on the warm BC2024 backbone —
+# head overshoots, never settles into a good optimum. With head_lr_mul=1.0,
+# both bodies learn at the same rate; if SWA val_auc improves vs e01 0.8553,
+# the 3× head boost was net-harmful.
+
+model:
+  name: tf_efficientnetv2_s.in21k_ft_in1k
+  pretrained: true
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  pretrained_backbone_path: data/aux/pretrained/v2s_bc2024_pretrain.pth
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+  head_lr_mul: 1.0    # ABLATION (default 3.0)
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  amp_dtype: bf16
+  grad_clip: 1.0
+  ema_decay: 0.999
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  background_noise:
+    enabled: false

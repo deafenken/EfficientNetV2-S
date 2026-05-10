@@ -1,0 +1,43 @@
+# eB2 — Direction B trial 2: ConvNeXtV2-tiny (FCMAE → in22k → in1k).
+#
+# Drop-in for V2-S; num_features=768 (smaller head input). FCMAE
+# (fully-convolutional masked autoencoder) self-supervised pretrain is
+# typically more transfer-friendly than supervised ImageNet alone.
+# Hypothesis: better fine-grained feature reuse on bird audio mels.
+
+model:
+  name: convnextv2_tiny.fcmae_ft_in22k_in1k
+  pretrained: true
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  pretrained_backbone_path: null
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  amp_dtype: bf16
+  grad_clip: 1.0
+  ema_decay: 0.999
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  background_noise:
+    enabled: false
