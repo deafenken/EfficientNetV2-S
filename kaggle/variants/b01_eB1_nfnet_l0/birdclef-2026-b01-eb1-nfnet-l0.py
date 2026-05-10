@@ -68,15 +68,15 @@ sample_sub = pd.read_csv(SAMPLE_SUB)
 print(f"sample_submission rows: {len(sample_sub)}")
 
 # %% cell 4 — run inference end-to-end via the library
-# Equivalent to:
-#   python -m birdclef2026.inference.predict \
-#     --checkpoints /kaggle/input/.../swa.pt \
-#     --defaults configs/data.yaml \
-#     --output /kaggle/working/submission.csv \
-#     --batch-size 32 --amp-dtype bf16
+# Force CPU + fp32. Kaggle's free-tier GPU is Tesla P100 (sm_60), but the
+# torch in the wheels kernel only ships sm_70+ kernels — actual forwards
+# crash on the competition rerun. NFNet-L0 on CPU through ~7k 5s windows
+# fits comfortably under the 9h cap.
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 import torch
-print("CUDA available:", torch.cuda.is_available(),
-      "device count:", torch.cuda.device_count() if torch.cuda.is_available() else 0)
+print("CUDA visible:", torch.cuda.is_available())  # expect False
 
 from birdclef2026.inference import predict as _predict_mod
 
@@ -85,8 +85,8 @@ sys.argv = [
     "--checkpoints", str(CKPT),
     "--defaults", str(WORK_CFG / "data.yaml"),
     "--output", "/kaggle/working/submission.csv",
-    "--batch-size", "32",
-    "--amp-dtype", "bf16" if torch.cuda.is_available() else "fp32",
+    "--batch-size", "16",
+    "--amp-dtype", "fp32",
 ]
 _predict_mod.main()
 
