@@ -13,10 +13,15 @@ What it does (~3-5 min once the access token is in place):
 The user clicks "Submit to Competition" on the run output afterwards
 (BirdCLEF 2026 is a code competition; final submission is per-run).
 
-Auth:
-  - Reads ``~/.kaggle/access_token`` (the user's PAT) and exports
-    ``KAGGLE_API_TOKEN``. Both ``kagglehub`` and ``kagglesdk`` honor it.
-  - The legacy ``kaggle`` CLI is not used (it can't auth with this PAT).
+Auth (split-stack: PAT for kagglehub, legacy json for kaggle CLI):
+  - Dataset upload uses ``kagglehub.dataset_upload`` which honors
+    ``KAGGLE_API_TOKEN`` (auto-loaded from ``~/.kaggle/access_token``).
+  - Kernel push uses the legacy ``kaggle kernels push`` CLI, which needs
+    ``~/.kaggle/kaggle.json`` (``{"username": ..., "key": ...}``). PAT
+    tokens do not carry the kernels.write / kernels.get scopes, so
+    kagglesdk's ``save_kernel`` returns 409 on first push and ``get_kernel``
+    returns 403. The fix is the legacy json — get one at
+    https://www.kaggle.com/settings → 'API' → 'Create New Token'.
 
 Usage:
   cd birdclef-2026 && uv run python scripts/17_kaggle_eB1_submit.py
@@ -140,69 +145,34 @@ def convert_notebook() -> None:
 
 
 def push_kernel() -> None:
-    import requests
-    from kagglesdk import KaggleClient
-    from kagglesdk.kernels.types.kernels_api_service import (
-        ApiGetKernelRequest,
-        ApiSaveKernelRequest,
-    )
+    """Push the notebook via the legacy ``kaggle`` CLI.
 
-    meta = json.loads((KERNEL_DIR / "kernel-metadata.json").read_text())
-    nb_text = KERNEL_IPYNB.read_text()
-    # Server expects a single source string per cell, not a list.
-    nb_obj = json.loads(nb_text)
-    for cell in nb_obj.get("cells", []):
-        if cell.get("cell_type") == "code":
-            cell["outputs"] = []
-        if isinstance(cell.get("source"), list):
-            cell["source"] = "".join(cell["source"])
-    nb_text = json.dumps(nb_obj)
+    The kagglesdk + PAT path returns 403 on get_kernel / 409 on save_kernel
+    because the new Personal Access Token format does not carry kernel
+    read/write scopes. Kernel push (and ``kaggle competitions submit``) still
+    require a legacy ``kaggle.json`` with ``{"username": ..., "key": ...}``.
+    """
+    kaggle_json = Path.home() / ".kaggle/kaggle.json"
+    if not kaggle_json.is_file():
+        sys.exit(
+            "[FATAL] need legacy ~/.kaggle/kaggle.json for kernel push.\n"
+            "        Get one at https://www.kaggle.com/settings → 'API' →\n"
+            "        'Create New Token' (downloads kaggle.json with\n"
+            "        username + key), drop it in ~/.kaggle/, chmod 600,\n"
+            "        and re-run. The dataset above is already uploaded."
+        )
 
-    # If a kernel with this slug already exists, fetch its numeric id so the
-    # push is treated as a new VERSION (not a duplicate create → 409).
-    existing_id: int | None = None
-    with KaggleClient(api_token=os.environ["KAGGLE_API_TOKEN"]) as client:
-        get_req = ApiGetKernelRequest()
-        get_req.user_name, get_req.kernel_slug = meta["id"].split("/", 1)
-        try:
-            existing = client.kernels.kernels_api_client.get_kernel(get_req)
-            existing_id = getattr(existing, "id", None) or getattr(existing, "_id", None)
-            if existing_id:
-                print(f"[kernel] existing id={existing_id} — will push as new version")
-        except requests.exceptions.HTTPError as e:
-            if e.response is not None and e.response.status_code == 404:
-                print("[kernel] no existing kernel — will create")
-            else:
-                raise
+    # kaggle CLI authenticates from kaggle.json; remove KAGGLE_API_TOKEN from
+    # this subprocess's env so it doesn't try the bearer-auth path that the
+    # PAT would mis-trigger.
+    env = {k: v for k, v in os.environ.items() if k != "KAGGLE_API_TOKEN"}
 
-    req = ApiSaveKernelRequest()
-    req.id = existing_id or meta.get("id_no")
-    req.slug = meta["id"]
-    req.new_title = meta["title"]
-    req.text = nb_text
-    req.language = meta["language"]
-    req.kernel_type = meta["kernel_type"]
-    req.is_private = bool(meta.get("is_private", True))
-    req.enable_gpu = bool(meta.get("enable_gpu", False))
-    req.enable_tpu = bool(meta.get("enable_tpu", False))
-    req.enable_internet = bool(meta.get("enable_internet", False))
-    req.dataset_data_sources = meta.get("dataset_sources", [])
-    req.competition_data_sources = meta.get("competition_sources", [])
-    req.kernel_data_sources = meta.get("kernel_sources", [])
-    req.model_data_sources = meta.get("model_sources", [])
-    req.category_ids = meta.get("keywords", [])
-
-    action = "version" if existing_id else "create"
-    print(f"[kernel] pushing {meta['id']} ({action})")
-    with KaggleClient(api_token=os.environ["KAGGLE_API_TOKEN"]) as client:
-        resp = client.kernels.kernels_api_client.save_kernel(req)
-    if getattr(resp, "_error", None):
-        sys.exit(f"[FATAL] kernel push failed: {resp._error}")
-    # KaggleObject exposes its fields as descriptor-backed attributes (no ()).
-    url = getattr(resp, "url", None) or f"https://www.kaggle.com/code/{meta['id']}"
-    version = getattr(resp, "version_number", None)
-    print(f"[kernel] OK → {url}")
-    print(f"[kernel] version = {version}")
+    cmd = ["kaggle", "kernels", "push", "-p", str(KERNEL_DIR)]
+    print(f"[kernel] $ {' '.join(cmd)}")
+    rc = subprocess.call(cmd, env=env)
+    if rc != 0:
+        sys.exit(f"[FATAL] kaggle kernels push exited rc={rc}")
+    print(f"[kernel] OK → https://www.kaggle.com/code/{json.loads((KERNEL_DIR / 'kernel-metadata.json').read_text())['id']}")
     print()
     print("Next: open the kernel URL, wait for the run to finish, then click")
     print("      'Submit to Competition' to enter the BirdCLEF 2026 LB.")
