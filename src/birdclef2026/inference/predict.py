@@ -75,6 +75,13 @@ def load_sed_checkpoint(
     target_columns = list(state.get("target_columns") or get_target_columns(
         resolve_data_root(cfg), cfg
     ))
+    # Saved cfg has training-time pretrained=True / pretrained_backbone_path=...,
+    # but at load time the state_dict overwrites everything. Skip both so the
+    # model builds offline (no timm download, no missing .pth lookup).
+    cfg = dict(cfg)
+    cfg["model"] = dict(cfg.get("model") or {})
+    cfg["model"]["pretrained"] = False
+    cfg["model"]["pretrained_backbone_path"] = None
     model = build_model_from_config(cfg, num_classes=len(target_columns))
     raw_state = state.get("model")
     if raw_state is None:

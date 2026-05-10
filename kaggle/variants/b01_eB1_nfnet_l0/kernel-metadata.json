@@ -1,0 +1,22 @@
+{
+  "id": "longkunshicandyman/birdclef-2026-b01-eb1-nfnet-l0",
+  "title": "BirdCLEF 2026 b01 eB1 NFNet-L0 fold0",
+  "code_file": "birdclef-2026-b01-eb1-nfnet-l0.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "longkunshicandyman/birdclef2026-eb1-pkg-ckpt"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ttahara/birdclef-2026-download-wheels"
+  ],
+  "model_sources": []
+}
