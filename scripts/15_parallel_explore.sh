@@ -25,7 +25,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 run_pipeline() {
-    local label="$1" gpus="$2" port="$3" log="/tmp/explore_${label}.log"
+    local label="$1" gpus="$2" port="$3"
+    local log="/tmp/explore_${label}.log"
     shift 3
     : > "$log"
     echo "[$(date +'%F %T')] [$label] pipeline start (gpus=$gpus port=$port)" | tee -a "$log"
