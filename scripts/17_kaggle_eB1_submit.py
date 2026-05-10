@@ -96,9 +96,19 @@ def stage_payload() -> None:
 
 
 def push_dataset() -> None:
+    # Some networks (notably university VPN egress like the L40 box) have
+    # broken IPv6 routing to GCS upload endpoints — `requests.put` hangs in
+    # `sock.connect(sa)` for ~5 min before timing out. Force IPv4 globally
+    # before importing kagglehub so its session uses our patched resolver.
+    import socket
+    _orig_getaddrinfo = socket.getaddrinfo
+    def _v4_only(host, port, family=0, *args, **kwargs):
+        return _orig_getaddrinfo(host, port, socket.AF_INET, *args, **kwargs)
+    socket.getaddrinfo = _v4_only
+
     import kagglehub
 
-    print(f"[ds] uploading → {DATASET_HANDLE}")
+    print(f"[ds] uploading → {DATASET_HANDLE} (IPv4-only)")
     notes = f"eB1 fold-0 SWA + package {os.popen('date +%Y-%m-%d_%H%M').read().strip()}"
     kagglehub.dataset_upload(
         handle=DATASET_HANDLE,
