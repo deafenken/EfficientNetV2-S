@@ -1,0 +1,22 @@
+{
+  "id": "winbeaux/birdclef-2026-b02-e01-v2s-baseline-fold0",
+  "title": "BirdCLEF 2026 b02 e01 V2-S baseline fold0",
+  "code_file": "birdclef-2026-b02-e01-v2s-baseline-fold0.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "winbeaux/birdclef2026-e01-pkg-ckpt"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ttahara/birdclef-2026-download-wheels"
+  ],
+  "model_sources": []
+}
