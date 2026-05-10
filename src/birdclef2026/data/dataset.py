@@ -14,6 +14,12 @@ Args:
     mixup_p:          probability of MixUp; 0 disables.
     mixup_alpha:      None for 50/50 wave avg (BirdCLEF 25 2nd default).
     mixup_target_aggregation: 'sum' (clamp 0..1, probabilistic OR), 'max', or 'beta'.
+    mixup_cross_species_p: probability that, *given* MixUp fires, the partner is
+                      forced to have a different ``primary_label`` from the anchor
+                      (default 0.0 = legacy uniform-random partner). Useful for
+                      domain-shift to soundscape where 5 s windows often contain
+                      2-3 overlapping species — uniform random mostly mixes within
+                      the same species and never teaches multi-species overlap.
     secondary_weight: 0.3 by default (soft-label for ``secondary_labels``).
     background_noise: optional ``BackgroundNoise`` augmentor (sample-level).
 """
@@ -50,6 +56,7 @@ class SEDDataset(Dataset):
         mixup_p: float = 0.5,
         mixup_alpha: float | None = None,
         mixup_target_aggregation: str = "sum",
+        mixup_cross_species_p: float = 0.0,
         secondary_weight: float = 0.3,
         background_noise: BackgroundNoise | None = None,
         primary_only_for_soundscape: bool = False,
@@ -74,6 +81,22 @@ class SEDDataset(Dataset):
         self.mixup_p = float(mixup_p) if training else 0.0
         self.mixup_alpha = mixup_alpha
         self.mixup_target_aggregation = mixup_target_aggregation
+        # Cross-species MixUp gate: clamped to [0, 1]. Only used when MixUp itself
+        # fires (i.e., gated by mixup_p first). Disabled outside training.
+        self.mixup_cross_species_p = (
+            max(0.0, min(1.0, float(mixup_cross_species_p))) if training else 0.0
+        )
+        # Per-primary_label index buckets, built lazily only when cross-species
+        # MixUp is enabled (avoids ~2 MB of dict overhead for the common
+        # cross_species_p=0.0 path). Each bucket is a list of row indices into
+        # ``self.df`` that share the same primary_label.
+        self._label_to_indices: dict[str, list[int]] | None = None
+        if self.training and self.mixup_p > 0 and self.mixup_cross_species_p > 0:
+            buckets: dict[str, list[int]] = {}
+            primaries = self.df["primary_label"].astype(str).tolist()
+            for i, lab in enumerate(primaries):
+                buckets.setdefault(lab, []).append(i)
+            self._label_to_indices = buckets
         self.secondary_weight = float(secondary_weight)
         self.background_noise = background_noise if training else None
         self.primary_only_for_soundscape = bool(primary_only_for_soundscape)
@@ -232,6 +255,58 @@ class SEDDataset(Dataset):
             target[self.label_to_idx[primary]] = 1.0
         return target
 
+    def _sample_mixup_partner(self, idx: int) -> int:
+        """Pick a MixUp partner index for anchor ``idx``.
+
+        Default behaviour (``mixup_cross_species_p == 0``) is uniform random over
+        the dataset, dedup-ing the anchor — identical to the legacy code.
+
+        With ``mixup_cross_species_p > 0`` we, with that probability, restrict the
+        partner to rows whose ``primary_label`` differs from the anchor's. This
+        is the key fix for soundscape domain shift: real Pantanal 5 s windows
+        routinely contain 2-3 species, but uniform-random MixUp on the long-tail
+        XC distribution mostly mixes within the same species and never teaches
+        cross-species overlap.
+
+        Fallbacks:
+          - If the anchor's primary_label is the only species in the dataset
+            (no "other" rows exist), we silently fall back to uniform random.
+        """
+        n = len(self.df)
+        if (
+            self.mixup_cross_species_p > 0.0
+            and self._label_to_indices is not None
+            and torch.rand(1).item() < self.mixup_cross_species_p
+        ):
+            anchor_label = str(self.df.iloc[idx]["primary_label"])
+            same_bucket = self._label_to_indices.get(anchor_label, ())
+            other_count = n - len(same_bucket)
+            if other_count > 0:
+                # Rejection sample — cheap because in the worst realistic case
+                # (most-common species ≈ a few % of the dataset) we accept on
+                # the first try, and we cap retries to keep tail behaviour bounded.
+                for _ in range(8):
+                    cand = int(torch.randint(0, n, (1,)).item())
+                    if str(self.df.iloc[cand]["primary_label"]) != anchor_label:
+                        return cand
+                # Rare fallback: scan the buckets to pick uniformly from "other".
+                # Build a flat list lazily — only hits this branch if rejection
+                # sampling failed 8x, which is negligible in practice.
+                pick = int(torch.randint(0, other_count, (1,)).item())
+                running = 0
+                for lab, indices in self._label_to_indices.items():
+                    if lab == anchor_label:
+                        continue
+                    if pick < running + len(indices):
+                        return indices[pick - running]
+                    running += len(indices)
+                # Should be unreachable; defensive fall-through to uniform.
+
+        partner_idx = int(torch.randint(0, n, (1,)).item())
+        if partner_idx == idx:
+            partner_idx = (idx + 1) % n
+        return partner_idx
+
     # ------------------------------------------------------------------ #
     # public: __getitem__ wraps load + optional MixUp
     # MixUp branch loads partners with _load_raw (no noise) and applies
@@ -250,9 +325,7 @@ class SEDDataset(Dataset):
             and torch.rand(1).item() < self.mixup_p
         )
         if do_mixup:
-            partner_idx = int(torch.randint(0, len(self.df), (1,)).item())
-            if partner_idx == idx:
-                partner_idx = (idx + 1) % len(self.df)
+            partner_idx = self._sample_mixup_partner(idx)
             wave_a, target_a, meta = self._load_raw(idx)
             wave_b, target_b, _ = self._load_raw(partner_idx)
             waveform, target = mixup_pair(

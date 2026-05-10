@@ -23,8 +23,24 @@ which is the difference between val_auc≈0.5 plateaus and a clean cosine
 climb to ~0.92 single fold.
 
 The public release used ``features_only=True``, so the last few keys
-(``conv_head.weight`` + ``bn2.*``, ~6% of params) aren't in the file —
-``strict=False`` keeps them at timm-init; they catch up in 1-2 epochs.
+(``conv_head.weight`` + ``bn2.*``, ~6% of params) aren't in the file. Two
+ways to deal with that:
+
+  * ``features_only=False`` (default, legacy) — build a regular timm model
+    with conv_head + bn2 and load with ``strict=False``. The 5 missing
+    keys stay at random timm init, sitting between the warm backbone and
+    the SED head. This silently caps the model: e01 V2-S LB 0.43 was
+    caused by exactly this footgun (conv_head + bn2 random-init).
+
+  * ``features_only=True`` (new, recommended) — build the timm model with
+    ``features_only=True, out_indices=(-1,)``, which stops at the last
+    block output (V2-S = 256 ch, not 1280 after conv_head). Now every
+    weight in the state_dict matches a parameter in the model, and the
+    SED head's GeMFreq + Linear(256 → 512) replaces conv_head.
+
+``warmstart_strict`` is a separate footgun guard: when True, any non-empty
+``missing_keys`` after ``load_state_dict(strict=False)`` raises so we
+don't silently ship a half-initialized backbone again.
 """
 
 from __future__ import annotations
@@ -57,40 +73,65 @@ class CNNBackbone(nn.Module):
         pretrained: bool = True,
         in_chans: int = 1,
         pretrained_state_dict_path: str | Path | None = None,
+        warmstart_strict: bool = False,
+        features_only: bool = False,
     ):
         super().__init__()
         self.name = name
         self.in_chans = int(in_chans)
+        self.warmstart_strict = bool(warmstart_strict)
+        self.features_only = bool(features_only)
         # Build with the channel count we'll actually feed at forward. timm
         # averages ImageNet's 3-channel conv1 weights into our 1-channel stem
         # (when pretrained=True), giving a sane warm-start that the bird-
         # domain pretrained checkpoint then overwrites.
-        self.body = timm.create_model(
-            name,
-            pretrained=pretrained,
-            num_classes=0,        # drop classifier
-            global_pool="",       # keep the spatial feature map
-            in_chans=self.in_chans,
-        )
-        if hasattr(self.body, "num_features"):
-            self.num_features = int(self.body.num_features)
+        if self.features_only:
+            # features_only=True returns a list of intermediate feature maps;
+            # ``out_indices=(-1,)`` keeps only the last block output. timm
+            # rejects num_classes / global_pool when features_only=True.
+            self.body = timm.create_model(
+                name,
+                pretrained=pretrained,
+                features_only=True,
+                in_chans=self.in_chans,
+                out_indices=(-1,),
+            )
+            # feature_info.channels() returns a list (one per out_indices entry).
+            ch = self.body.feature_info.channels()
+            self.num_features = int(ch[-1])
         else:
-            with torch.no_grad():
-                dummy = torch.zeros(1, self.in_chans, 128, 128)
-                feat = self.body(dummy)
-                self.num_features = int(feat.shape[1])
+            self.body = timm.create_model(
+                name,
+                pretrained=pretrained,
+                num_classes=0,        # drop classifier
+                global_pool="",       # keep the spatial feature map
+                in_chans=self.in_chans,
+            )
+            if hasattr(self.body, "num_features"):
+                self.num_features = int(self.body.num_features)
+            else:
+                with torch.no_grad():
+                    dummy = torch.zeros(1, self.in_chans, 128, 128)
+                    feat = self.body(dummy)
+                    self.num_features = int(feat.shape[1])
 
         if pretrained_state_dict_path is not None:
-            self._load_external_pretrained(Path(pretrained_state_dict_path))
+            self._load_external_pretrained(
+                Path(pretrained_state_dict_path),
+                strict=self.warmstart_strict,
+            )
 
-    def _load_external_pretrained(self, path: Path) -> None:
+    def _load_external_pretrained(self, path: Path, strict: bool = False) -> None:
         """Load a bird-domain pretrained backbone state_dict.
 
         Accepts:
           - bare timm state_dicts (e.g. Sydorskyy's ``Pretrainversion1.pth``)
           - Lightning-wrapped ``{'state_dict': {...}}`` dicts
           - dicts with a ``backbone.*`` / ``body.*`` / ``model.*`` prefix
-        Always loads with ``strict=False``; logs a one-line summary.
+        Always loads with ``strict=False`` underneath; if ``strict=True`` is
+        passed, raises after the load when ``missing_keys`` is non-empty.
+        That's the footgun guard for "ckpt architecture vs model architecture
+        silently disagree" — see e01 V2-S LB 0.43 post-mortem.
         """
         if not path.exists():
             raise FileNotFoundError(f"pretrained backbone not found: {path}")
@@ -123,6 +164,17 @@ class CNNBackbone(nn.Module):
                 ", ..." if n_unexpected > 3 else ""
             )
             print(f"[backbone]   unexpected (ignored): {sample}")
+        if strict and n_missing > 0:
+            preview = "\n  - ".join(load.missing_keys[:10])
+            extra = (
+                f"\n  ... ({n_missing - 10} more)" if n_missing > 10 else ""
+            )
+            raise RuntimeError(
+                f"warmstart_strict=True: {n_missing} missing keys after loading "
+                f"{path.name}. First {min(n_missing, 10)}:\n  - {preview}{extra}\n"
+                f"Either set features_only=True (to drop conv_head + bn2 in V2-S "
+                f"SED-style ckpts) or pick a checkpoint that matches the model."
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if x.ndim == 3:                        # (B, n_mels, T) → (B, 1, n_mels, T)
@@ -135,7 +187,12 @@ class CNNBackbone(nn.Module):
                 raise ValueError(
                     f"backbone expects in_chans={self.in_chans}, got {x.shape[1]}"
                 )
-        return self.body(x)                    # (B, C, F', T')
+        out = self.body(x)
+        if self.features_only:
+            # features_only=True returns list[Tensor]; with out_indices=(-1,)
+            # there is exactly one entry — the last block's (B, C, F', T').
+            return out[-1] if isinstance(out, (list, tuple)) else out
+        return out                             # (B, C, F', T')
 
 
 def create_backbone(
@@ -143,10 +200,14 @@ def create_backbone(
     pretrained: bool = True,
     in_chans: int = 1,
     pretrained_state_dict_path: str | Path | None = None,
+    warmstart_strict: bool = False,
+    features_only: bool = False,
 ) -> CNNBackbone:
     return CNNBackbone(
         name=name,
         pretrained=pretrained,
         in_chans=in_chans,
         pretrained_state_dict_path=pretrained_state_dict_path,
+        warmstart_strict=warmstart_strict,
+        features_only=features_only,
     )

@@ -1,0 +1,77 @@
+# eB1b — eB1 NFNet with domain adapters re-enabled.
+#
+# Diagnosis recap: eB1 (ECA-NFNet-L0, ImageNet warm-start) hit
+# val_strict 0.91 but only LB 0.75 — the full -0.16 drop attributable to
+# XC-focal → Pantanal-soundscape domain shift. eB1 had every domain adapter
+# turned off (background_noise.enabled=false, no cross-species MixUp,
+# pseudo-labels off). This config flips on the two cheapest, highest-leverage
+# adapters while keeping every other knob identical to eB1 so the gain is
+# attributable.
+#
+# Changes vs eB1 (none touch the model / optim / loss):
+#   (1) augment.background_noise: ESC-50 ambient mix-in (rain/wind/insects/
+#       crickets/frog/thunder), p=0.5, amp 0.25–0.75 — same recipe as e02.
+#       Forces the backbone to learn bird-vs-noise separation under the same
+#       spectral clutter the test soundscapes contain.
+#   (2) augment.mixup.cross_species_p: 1.0 — every MixUp pair is forced to
+#       have distinct primary_label. Soundscape 5 s windows routinely contain
+#       2-3 overlapping species; uniform-random MixUp on the long-tail XC
+#       distribution mostly mixes within-species and never teaches multi-
+#       species overlap. (mixup p / alpha / aggregation unchanged: 0.5,
+#       null=50/50 wave avg, sum.)
+#
+# Expected: at least +0.03 ~ +0.05 LB vs eB1 (LB 0.75 → 0.78~0.80) on the
+# fold-0 single-model run. If the gain shows up, fold this back into the eC*
+# / eB2 ensemble before the next submission.
+#
+# Pre-reqs (all already used by e02): data/aux/esc50_ambient/ populated by
+# scripts/05_prep_esc50.sh.
+
+model:
+  name: eca_nfnet_l0
+  pretrained: true
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  pretrained_backbone_path: null    # no BC2024 ckpt for NFNet (same as eB1)
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  amp_dtype: bf16
+  grad_clip: 1.0
+  ema_decay: 0.999
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  background_noise:
+    enabled: true
+    dirs:
+      - /workspace/birdclef-2026/data/aux/esc50_ambient
+    suffixes: [".wav", ".ogg", ".flac", ".mp3"]
+    min_amp: 0.25
+    max_amp: 0.75
+    p: 0.5
+    normalize: true
+  mixup:
+    p: 0.5
+    alpha: null
+    target_aggregation: sum
+    cross_species_p: 1.0       # <-- key adapter: every mix is cross-species

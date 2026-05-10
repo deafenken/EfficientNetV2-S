@@ -1,0 +1,93 @@
+# Experiment e03 — V2-S warm-start fix (architecture-aligned, 5-fold).
+#
+# Diagnosis context (vs e01 LB 0.43, eB1 NFNet LB 0.75):
+#   The bird-domain pretrained ckpt `v2s_bc2024_pretrain.pth` (and the SWA
+#   `v2s_bc2025_swa.ckpt`) was saved from an `features_only=True` SED model
+#   — its last layer is `blocks.5.14.bn3.*`, with no `conv_head` / `bn2`.
+#   e01/e02 built the timm V2-S the legacy way (num_classes=0,
+#   global_pool=""), which DOES include the top-level `conv_head`
+#   (1280-ch projection) + `bn2`. `strict=False` then silently kept those
+#   5 keys at random timm-init, jamming a 1280-ch random projection
+#   between the warm backbone and the SED head. That's the LB 0.43 root
+#   cause.
+#
+# Fix vs e02:
+#   * features_only: true — build V2-S with `features_only=True,
+#     out_indices=(-1,)` so the model stops at the last block (256 ch),
+#     fully covered by the ckpt. No more random conv_head + bn2.
+#   * warmstart_strict: true — assert no missing keys after load. If the
+#     ckpt and the model disagree again, training crashes loudly instead
+#     of silently shipping a half-init backbone.
+#   * Otherwise: inherit e02's setup (SWA pretrained ckpt, fp32, focal+BCE,
+#     SWA epochs, balanced sampler, ESC-50 background-noise).
+#
+# Expected vs e01 LB 0.43:
+#   Local OOF macro-AUC should land near 0.91~0.93 single fold (e02 target
+#   zone), and LB should recover to >= 0.7 — closing the gap to eB1 (0.75).
+#
+# Run:
+#   bash scripts/10_train.sh configs/exp/e03_v2s_fixed.yaml 0
+#   ... (folds 1..4 in turn)
+
+model:
+  name: tf_efficientnetv2_s.in21k_ft_in1k
+  pretrained: true                # ImageNet warm-start (averaged into 1-ch stem)
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  # 2025 SWA pretrained on the larger bigXCV2Ext corpus (BC 2021-2025 +
+  # XC + iNat). Saved from a `features_only=True` SED model, so it covers
+  # everything up to `blocks.5.14.bn3.*` and nothing above.
+  pretrained_backbone_path: /workspace/birdclef-2026/data/aux/pretrained/v2s_bc2025_swa.ckpt
+  # Build timm V2-S in features_only mode → last block (256 ch) → SED head.
+  # This is the actual LB 0.43 fix.
+  features_only: true
+  # Footgun guard: refuse to start training if the ckpt has any missing
+  # keys after load. If you swap to a ckpt that doesn't match, this fires
+  # immediately instead of waiting for an LB submission to discover it.
+  warmstart_strict: true
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+  head_lr_mul: 3.0
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  # fp32 — matches BC2025 2nd Place's `noamp` setting (e02's choice C).
+  amp_dtype: fp32
+  grad_clip: 1.0
+  ema_decay: 0.999
+  swa_epochs: 5
+  val_n_crops: 5
+  sampler:
+    kind: balanced
+    rare_floor: 30
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  # Background-mix: ESC-50 ambient subset already staged on the training
+  # box (~240 files: rain/wind/insects/thunder/frog/crickets).
+  background_noise:
+    enabled: true
+    dirs:
+      - /workspace/birdclef-2026/data/aux/esc50_ambient
+    suffixes: [".wav", ".ogg", ".flac", ".mp3"]
+    min_amp: 0.25
+    max_amp: 0.75
+    p: 0.5
+    normalize: true

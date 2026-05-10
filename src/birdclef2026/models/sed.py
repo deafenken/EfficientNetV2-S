@@ -115,6 +115,8 @@ class SEDModel(nn.Module):
         pretrained: bool = True,
         pretrained_backbone_path: Optional[str] = None,
         backbone_in_chans: int = 1,
+        warmstart_strict: bool = False,
+        features_only: bool = False,
     ):
         super().__init__()
         self.num_classes = int(num_classes)
@@ -126,6 +128,8 @@ class SEDModel(nn.Module):
                 pretrained=pretrained,
                 in_chans=backbone_in_chans,
                 pretrained_state_dict_path=pretrained_backbone_path,
+                warmstart_strict=warmstart_strict,
+                features_only=features_only,
             )
         else:
             self.backbone = backbone
@@ -193,4 +197,6 @@ def build_model_from_config(cfg: dict, num_classes: int) -> SEDModel:
         pretrained=bool(model_cfg.get("pretrained", True)),
         pretrained_backbone_path=model_cfg.get("pretrained_backbone_path"),
         backbone_in_chans=int(model_cfg.get("backbone_in_chans", 1)),
+        warmstart_strict=bool(model_cfg.get("warmstart_strict", False)),
+        features_only=bool(model_cfg.get("features_only", False)),
     )

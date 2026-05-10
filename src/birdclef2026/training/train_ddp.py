@@ -219,6 +219,7 @@ def _build_loaders(
         mixup_p=float(mixup_cfg.get("p", 0.5)),
         mixup_alpha=mixup_cfg.get("alpha"),
         mixup_target_aggregation=str(mixup_cfg.get("target_aggregation", "sum")),
+        mixup_cross_species_p=float(mixup_cfg.get("cross_species_p", 0.0)),
         secondary_weight=float(data_cfg.get("secondary_weight", 0.3)),
         background_noise=bg_noise,
         crop_strategy=crop_strategy,
