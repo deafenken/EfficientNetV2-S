@@ -176,8 +176,11 @@ def push_kernel() -> None:
         resp = client.kernels.kernels_api_client.save_kernel(req)
     if getattr(resp, "_error", None):
         sys.exit(f"[FATAL] kernel push failed: {resp._error}")
-    print(f"[kernel] OK → {resp.url() or 'https://www.kaggle.com/code/' + meta['id']}")
-    print(f"[kernel] version = {resp.version_number()}")
+    # KaggleObject exposes its fields as descriptor-backed attributes (no ()).
+    url = getattr(resp, "url", None) or f"https://www.kaggle.com/code/{meta['id']}"
+    version = getattr(resp, "version_number", None)
+    print(f"[kernel] OK → {url}")
+    print(f"[kernel] version = {version}")
     print()
     print("Next: open the kernel URL, wait for the run to finish, then click")
     print("      'Submit to Competition' to enter the BirdCLEF 2026 LB.")
