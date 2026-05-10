@@ -140,8 +140,12 @@ def convert_notebook() -> None:
 
 
 def push_kernel() -> None:
+    import requests
     from kagglesdk import KaggleClient
-    from kagglesdk.kernels.types.kernels_api_service import ApiSaveKernelRequest
+    from kagglesdk.kernels.types.kernels_api_service import (
+        ApiGetKernelRequest,
+        ApiSaveKernelRequest,
+    )
 
     meta = json.loads((KERNEL_DIR / "kernel-metadata.json").read_text())
     nb_text = KERNEL_IPYNB.read_text()
@@ -154,8 +158,25 @@ def push_kernel() -> None:
             cell["source"] = "".join(cell["source"])
     nb_text = json.dumps(nb_obj)
 
+    # If a kernel with this slug already exists, fetch its numeric id so the
+    # push is treated as a new VERSION (not a duplicate create → 409).
+    existing_id: int | None = None
+    with KaggleClient(api_token=os.environ["KAGGLE_API_TOKEN"]) as client:
+        get_req = ApiGetKernelRequest()
+        get_req.user_name, get_req.kernel_slug = meta["id"].split("/", 1)
+        try:
+            existing = client.kernels.kernels_api_client.get_kernel(get_req)
+            existing_id = getattr(existing, "id", None) or getattr(existing, "_id", None)
+            if existing_id:
+                print(f"[kernel] existing id={existing_id} — will push as new version")
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                print("[kernel] no existing kernel — will create")
+            else:
+                raise
+
     req = ApiSaveKernelRequest()
-    req.id = meta.get("id_no")
+    req.id = existing_id or meta.get("id_no")
     req.slug = meta["id"]
     req.new_title = meta["title"]
     req.text = nb_text
@@ -171,7 +192,8 @@ def push_kernel() -> None:
     req.model_data_sources = meta.get("model_sources", [])
     req.category_ids = meta.get("keywords", [])
 
-    print(f"[kernel] pushing {meta['id']}")
+    action = "version" if existing_id else "create"
+    print(f"[kernel] pushing {meta['id']} ({action})")
     with KaggleClient(api_token=os.environ["KAGGLE_API_TOKEN"]) as client:
         resp = client.kernels.kernels_api_client.save_kernel(req)
     if getattr(resp, "_error", None):
