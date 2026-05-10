@@ -184,6 +184,12 @@ def push_kernel() -> None:
 
 
 def main() -> None:
+    kernel_only = "--kernel-only" in sys.argv
+    if kernel_only:
+        print("[main] --kernel-only: skipping stage + dataset upload")
+        convert_notebook()
+        push_kernel()
+        return
     ensure_token()
     stage_payload()
     push_dataset()
