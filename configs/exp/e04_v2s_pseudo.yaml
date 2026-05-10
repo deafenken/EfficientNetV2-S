@@ -1,0 +1,90 @@
+# Experiment e04 — e03 + Round-1 pseudo-labels.
+#
+# Lineage:
+#   e01  (V2-S, conv_head random-init bug)         LB 0.43
+#   e03  (V2-S features_only + warmstart_strict +  LB target >= 0.7
+#        BG noise — the LB 0.43 fix)
+#   e04  (e03 + R1 pseudo-labels on unlabeled      LB +0.03~0.05 vs e03
+#        train_soundscapes)
+#
+# What changes vs e03:
+#   ONLY the data block. Model / optim / loss / train / augment are byte-for-
+#   byte identical to e03 (features_only, warmstart_strict, fp32, BG noise,
+#   balanced sampler, SWA) so the LB delta is fully attributable to the
+#   pseudo-label injection.
+#
+# Pseudo-label source:
+#   outputs/pseudo/r1_eB1b_e03.csv from scripts/20_run_pseudo_r1.sh
+#   (eB1b + e03 fold-0 ensemble, prob_min=0.5).
+#   include_train_soundscapes is turned off because the R1 csv already covers
+#   the soundscape distribution with soft labels — keeping the small hard
+#   subset on top would double-count.
+#
+# Pre-reqs:
+#   * e03 fold-0 + eB1b fold-0 trained (swa.pt present)
+#   * scripts/20_run_pseudo_r1.sh executed → r1_eB1b_e03.csv exists
+
+data:
+  include_train_audio: true
+  include_train_soundscapes: false   # R1 pseudo csv supersedes the hard subset
+  pseudo_label_csv: outputs/pseudo/r1_eB1b_e03.csv
+  pseudo_min_prob: 0.5
+  secondary_weight: 0.3
+  crop_strategy: head_tail
+  crop_anchor_seconds: 6.0
+
+model:
+  name: tf_efficientnetv2_s.in21k_ft_in1k
+  pretrained: true                # ImageNet warm-start (averaged into 1-ch stem)
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  # 2025 SWA pretrained on the larger bigXCV2Ext corpus (BC 2021-2025 +
+  # XC + iNat). Saved from a `features_only=True` SED model.
+  pretrained_backbone_path: /workspace/birdclef-2026/data/aux/pretrained/v2s_bc2025_swa.ckpt
+  features_only: true
+  warmstart_strict: true
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+  head_lr_mul: 3.0
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  # fp32 — matches BC2025 2nd Place's `noamp` setting (e02's choice C).
+  amp_dtype: fp32
+  grad_clip: 1.0
+  ema_decay: 0.999
+  swa_epochs: 5
+  val_n_crops: 5
+  sampler:
+    kind: balanced
+    rare_floor: 30
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  # Background-mix: ESC-50 ambient subset already staged on the training box.
+  background_noise:
+    enabled: true
+    dirs:
+      - /workspace/birdclef-2026/data/aux/esc50_ambient
+    suffixes: [".wav", ".ogg", ".flac", ".mp3"]
+    min_amp: 0.25
+    max_amp: 0.75
+    p: 0.5
+    normalize: true

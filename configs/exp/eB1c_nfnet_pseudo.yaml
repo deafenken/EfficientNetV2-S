@@ -1,0 +1,83 @@
+# eB1c — eB1b + Round-1 pseudo-labels.
+#
+# Lineage:
+#   eB1  (NFNet, no domain adapters)              LB 0.75
+#   eB1b (NFNet + BG noise + cross-species mixup) LB 0.78~0.80 (fold-0 single)
+#   eB1c (eB1b + R1 pseudo-labels on unlabeled    LB 0.81~0.85 (target)
+#        train_soundscapes)
+#
+# What changes vs eB1b:
+#   ONLY the data block. Model / optim / loss / train / augment are byte-for-
+#   byte identical to eB1b so the +0.03~0.05 LB delta (vs eB1b at 0.78~0.80)
+#   is fully attributable to the pseudo-label injection.
+#
+# Pseudo-label source:
+#   outputs/pseudo/r1_eB1b_e03.csv produced by scripts/20_run_pseudo_r1.sh
+#   (eB1b + e03 fold-0 ensemble, prob_min=0.5).
+#   The metadata builder picks the CSV up via `data.pseudo_label_csv` and
+#   appends rows on top of train_audio. We disable train_soundscapes_labels.csv
+#   here because the R1 csv already covers the full unlabeled-soundscape
+#   distribution with soft labels — keeping the small hard-labeled subset on
+#   top would double-count those windows.
+#
+# Pre-reqs:
+#   * eB1b fold-0 + e03 fold-0 trained (swa.pt present)
+#   * scripts/20_run_pseudo_r1.sh executed → r1_eB1b_e03.csv exists
+
+data:
+  include_train_audio: true
+  include_train_soundscapes: false   # R1 pseudo csv supersedes the hard subset
+  pseudo_label_csv: outputs/pseudo/r1_eB1b_e03.csv
+  pseudo_min_prob: 0.5
+  secondary_weight: 0.3
+  crop_strategy: head_tail
+  crop_anchor_seconds: 6.0
+
+model:
+  name: eca_nfnet_l0
+  pretrained: true
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  pretrained_backbone_path: null    # no BC2024 ckpt for NFNet (same as eB1/eB1b)
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  amp_dtype: bf16
+  grad_clip: 1.0
+  ema_decay: 0.999
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.05
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  background_noise:
+    enabled: true
+    dirs:
+      - /workspace/birdclef-2026/data/aux/esc50_ambient
+    suffixes: [".wav", ".ogg", ".flac", ".mp3"]
+    min_amp: 0.25
+    max_amp: 0.75
+    p: 0.5
+    normalize: true
+  mixup:
+    p: 0.5
+    alpha: null
+    target_aggregation: sum
+    cross_species_p: 1.0       # same key adapter as eB1b
