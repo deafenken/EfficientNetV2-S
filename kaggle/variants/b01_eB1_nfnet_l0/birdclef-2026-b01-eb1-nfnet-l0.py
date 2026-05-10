@@ -68,15 +68,31 @@ sample_sub = pd.read_csv(SAMPLE_SUB)
 print(f"sample_submission rows: {len(sample_sub)}")
 
 # %% cell 4 — run inference end-to-end via the library
-# Force CPU + fp32. Kaggle's free-tier GPU is Tesla P100 (sm_60), but the
-# torch in the wheels kernel only ships sm_70+ kernels — actual forwards
-# crash on the competition rerun. NFNet-L0 on CPU through ~7k 5s windows
-# fits comfortably under the 9h cap.
+# Force CPU + fp32 (Kaggle's P100 sm_60 isn't supported by the torch in
+# ttahara's wheels kernel — sm_70+ only). NFNet-L0 across ~7k 5s windows
+# on CPU should fit well under the 9h cap.
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import torch
+import traceback
+
 print("CUDA visible:", torch.cuda.is_available())  # expect False
+print("torch:", torch.__version__, "threads:", torch.get_num_threads())
+
+# Pre-write a sample-submission stub so that even if the predict step
+# crashes mid-way Kaggle's scoring sees a CSV-shaped output (and the
+# rerun log surfaces our raised error) instead of "Submission CSV Not Found".
+# Predict overwrites this file on success.
+_zero_sub_path = Path("/kaggle/working/submission.csv")
+if not _zero_sub_path.exists():
+    _stub = pd.read_csv(SAMPLE_SUB)
+    # Force-zero all probability columns just in case sample_submission has
+    # nontrivial values.
+    for _c in _stub.columns[1:]:
+        _stub[_c] = 0.0
+    _stub.to_csv(_zero_sub_path, index=False)
+    print(f"[stub] wrote zero-fallback submission.csv ({len(_stub)} rows × {len(_stub.columns)} cols)")
 
 from birdclef2026.inference import predict as _predict_mod
 
@@ -85,10 +101,16 @@ sys.argv = [
     "--checkpoints", str(CKPT),
     "--defaults", str(WORK_CFG / "data.yaml"),
     "--output", "/kaggle/working/submission.csv",
-    "--batch-size", "16",
+    "--batch-size", "4",       # conservative — rerun has hidden memory budget
     "--amp-dtype", "fp32",
 ]
-_predict_mod.main()
+try:
+    _predict_mod.main()
+except BaseException as _e:
+    # Make the actual error survive into Kaggle's submission log.
+    print("[FATAL] predict.main() raised:", type(_e).__name__, str(_e), flush=True)
+    traceback.print_exc()
+    raise
 
 # %% cell 5 — quick QC: row count + non-trivial probability spread
 sub = pd.read_csv("/kaggle/working/submission.csv")
