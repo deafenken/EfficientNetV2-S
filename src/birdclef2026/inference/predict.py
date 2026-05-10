@@ -239,8 +239,14 @@ def predict_for_models(
     n_classes = None
     predictions: dict[str, np.ndarray] = {}
 
+    n_load_fail = 0
     for path, group_rows in tqdm(grouped.items(), desc="infer files"):
-        waveform = load_audio(path, sample_rate)
+        try:
+            waveform = load_audio(path, sample_rate)
+        except Exception as e:
+            n_load_fail += 1
+            print(f"[infer] skip (load failed) {path}: {type(e).__name__}: {e}")
+            continue
         windows = [
             _extract_window(waveform, sample_rate, clip_seconds, row["end_time"])
             for row in group_rows
@@ -265,6 +271,8 @@ def predict_for_models(
             for row, prob in zip(batch_rows, ensemble_probs):
                 predictions[row["row_id"]] = prob
 
+    if n_load_fail:
+        print(f"[infer] WARN: {n_load_fail} audio files failed to load (filled zeros)")
     return predictions
 
 
