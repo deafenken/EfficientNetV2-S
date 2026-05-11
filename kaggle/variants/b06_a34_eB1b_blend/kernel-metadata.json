@@ -1,0 +1,21 @@
+{
+  "id": "winbeaux/birdclef-2026-b06-a34-eb1b-blend",
+  "title": "BirdCLEF 2026 b06 A34 + eB1b rank-blend",
+  "code_file": "birdclef-2026-b06-a34-eb1b-blend.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "longkunshicandyman/birdclef-2026-a34-a33-epoch-upscale",
+    "winbeaux/birdclef-2026-b03-eb1b-nfnet-bgnoise-fold0"
+  ],
+  "model_sources": []
+}

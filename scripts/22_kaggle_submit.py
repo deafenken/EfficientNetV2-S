@@ -82,6 +82,10 @@ class Variant:
     dataset_handle: str
     kernel_dir: Path
     notes_label: str
+    # When True, skip stage_payload + push_dataset entirely (the variant has
+    # no ckpt of its own — it only pushes a kernel that consumes other
+    # kernels' outputs via kernel_sources, e.g. a blend kernel).
+    kernel_only: bool = False
 
 
 VARIANTS: dict[str, Variant] = {
@@ -124,6 +128,18 @@ VARIANTS: dict[str, Variant] = {
         dataset_handle="winbeaux/birdclef2026-e03-pkg-ckpt",
         kernel_dir=ROOT / "kaggle/variants/b05_e03_v2s_fixed",
         notes_label="e03 fold-0 SWA + package",
+    ),
+    # b06 has no ckpt — it's a blend-only kernel that reads two existing
+    # kernel outputs (A34 + b03 eB1b) via kernel_sources and rank-averages
+    # them. `kernel_only=True` short-circuits stage_payload + push_dataset.
+    "b06_a34_eB1b_blend": Variant(
+        name="b06_a34_eB1b_blend",
+        exp_ckpt_path="",
+        payload_dir=Path("/tmp/_b06_unused"),
+        dataset_handle="",
+        kernel_dir=ROOT / "kaggle/variants/b06_a34_eB1b_blend",
+        notes_label="b06 A34+eB1b rank-blend",
+        kernel_only=True,
     ),
 }
 
@@ -341,11 +357,14 @@ def main() -> None:
 
     variant = VARIANTS[args.variant]
     print(f"[main] variant: {variant.name}")
-    print(f"[main] dataset: {variant.dataset_handle}")
+    print(f"[main] dataset: {variant.dataset_handle or '(none — blend-only kernel)'}")
     print(f"[main] kernel : {variant.kernel_dir.relative_to(ROOT)}")
 
-    if args.kernel_only:
-        print("[main] --kernel-only: skipping stage + dataset upload")
+    if args.kernel_only or variant.kernel_only:
+        if variant.kernel_only:
+            print("[main] kernel-only variant: skipping stage + dataset upload")
+        else:
+            print("[main] --kernel-only: skipping stage + dataset upload")
         convert_notebook(variant)
         push_kernel(variant)
         return
