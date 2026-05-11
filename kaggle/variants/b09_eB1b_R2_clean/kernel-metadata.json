@@ -1,0 +1,22 @@
+{
+  "id": "winbeaux/birdclef-2026-b09-eb1b-r2-clean",
+  "title": "BirdCLEF 2026 b09 eB1b R2 clean",
+  "code_file": "b09_eB1b_R2_clean.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "winbeaux/birdclef2026-ebr2-pkg-ckpt"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ttahara/birdclef-2026-download-wheels"
+  ],
+  "model_sources": []
+}

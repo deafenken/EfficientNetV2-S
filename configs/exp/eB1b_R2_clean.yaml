@@ -1,0 +1,92 @@
+# eB1b_R2_clean — single NFNet retrain on top of eB1b (LB 0.798) base.
+#
+# Skip P0 (noisy-student PL): per BirdCLEF 2024-2nd + 2025-1st writeups, R1
+# teacher must be an ensemble across architectures, and a failed R1 round
+# (our eB1c LB 0.793 < eB1b 0.798) is discarded outright — not reused as a
+# teacher. We only have one good NFNet single, so no PL this round; b09 is
+# the "clean retrain with what actually moves the gap from focal to
+# soundscape" pass. PL waits until we have ≥2 architecturally diverse
+# backbones (V2-S clean / EffNet-B3) to ensemble as a real teacher.
+#
+# Changes vs eB1b (the LB 0.798 base):
+#   (P1) augment.background_noise.dirs: train_soundscapes (the competition's
+#        labeled passive recordings) replaces ESC-50 ambient. Same recipe as
+#        BirdCLEF 2024 2nd-place's "target-domain noise mix" — the model
+#        learns species under exactly the spectral clutter the LB sees. The
+#        labels on these clips are sparse + we are NOT enabling
+#        include_train_soundscapes, so they only feed the BG-noise pool, not
+#        the focal training set (avoids the same audio being both noise and
+#        labeled).
+#   (P1) augment.random_amplitude: 10 ** U(-1.0, 0.1) gain scaling, p=0.7.
+#        Models the near/far SNR variation in real soundscapes (BC2024-2nd).
+#        Applied BEFORE BackgroundNoise so the mix weighs against the
+#        scaled wave instead of letting BG drown out a quiet target.
+#   (P3) loss.label_smoothing: 0.05 → 0.02. 2025-1st/2nd run 0.005-0.01;
+#        we go to 0.02 as a halfway step so the existing FocalBCE behavior
+#        isn't shocked. Tighter targets push the head to sharper logits,
+#        which TTA + chunk_smooth at submit time can then average over.
+#
+# Submit-time TTA (P2) lives in the kernel, not here:
+#   --tta-offsets -2.5 -1.25 0 1.25 2.5    (5-crop with ±2.5 s spread, vs
+#                                           the legacy 0.5 s ladder)
+#   --chunk-smooth                          (1D conv [0.1,0.2,0.4,0.2,0.1]
+#                                           across each file's 12 windows)
+# 2025-1st reports ±2.5 s TTA bumped 0.91→0.922; chunk_smooth is the
+# 2024-3rd post-process.
+#
+# Expected: +0.03 ~ +0.05 LB vs eB1b base. LB ≥ 0.83 unlocks the next round:
+# train V2-S clean + EffNet-B3 / RegNetY for a 3-model teacher → R2 PL.
+
+model:
+  name: eca_nfnet_l0
+  pretrained: true
+  head_dropout: 0.5
+  backbone_in_chans: 1
+  pretrained_backbone_path: null
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  lr_min: 1.0e-6
+
+train:
+  batch_size_per_gpu: 64
+  val_batch_size: 64
+  num_workers: 8
+  prefetch_factor: 2
+  epochs: 50
+  warmup_epochs: 2
+  amp_dtype: bf16
+  grad_clip: 1.0
+  ema_decay: 0.999
+
+loss:
+  alpha: 0.25
+  gamma: 2.0
+  bce_weight: 1.0
+  focal_weight: 1.0
+  label_smoothing: 0.02        # P3: 0.05 → 0.02 (sharper targets)
+  ls_mode: positive
+  pos_weight: 5.0
+
+augment:
+  background_noise:
+    enabled: true
+    dirs:
+      - /workspace/birdclef-2026/data/birdclef-2026/train_soundscapes  # P1: target-domain
+    suffixes: [".ogg"]
+    min_amp: 0.25
+    max_amp: 0.75
+    p: 0.5
+    normalize: true
+  random_amplitude:            # P1: new — log-uniform gain scaling
+    enabled: true
+    p: 0.7
+    log10_min: -1.0
+    log10_max: 0.1
+  mixup:
+    p: 0.5
+    alpha: null
+    target_aggregation: sum
+    cross_species_p: 1.0       # carried over from eB1b — every mix cross-species

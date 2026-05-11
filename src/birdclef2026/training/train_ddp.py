@@ -69,7 +69,7 @@ from torch.utils.data.distributed import DistributedSampler
 
 from ..data.dataset import SEDDataset
 from ..data.samplers import DistributedWeightedSampler, sqrt_balanced_weights
-from ..data.transforms import BackgroundNoise
+from ..data.transforms import BackgroundNoise, RandomAmplitude
 from ..metadata import build_train_metadata, get_target_columns
 from ..models.losses import FocalBCEWithLogits
 from ..models.sed import build_model_from_config
@@ -200,8 +200,24 @@ def _build_loaders(
             p=float(bg_cfg.get("p", 0.5)),
             normalize=bool(bg_cfg.get("normalize", True)),
         )
+        if _is_main(rank):
+            print(f"[bg-noise] pool size: {len(noise_paths)} files from {bg_cfg.get('dirs')}")
     elif bg_cfg.get("enabled", False) and _is_main(rank):
         print(f"[warn] background_noise.enabled=True but no noise files found in {bg_cfg.get('dirs')}")
+
+    ra_cfg = aug_cfg.get("random_amplitude", {}) or {}
+    rand_amp = None
+    if ra_cfg.get("enabled", False):
+        rand_amp = RandomAmplitude(
+            p=float(ra_cfg.get("p", 0.7)),
+            log10_min=float(ra_cfg.get("log10_min", -1.0)),
+            log10_max=float(ra_cfg.get("log10_max", 0.1)),
+        )
+        if _is_main(rank):
+            print(
+                f"[rand-amp] enabled p={ra_cfg.get('p', 0.7)} "
+                f"log10=[{ra_cfg.get('log10_min', -1.0)}, {ra_cfg.get('log10_max', 0.1)}]"
+            )
 
     mixup_cfg = aug_cfg.get("mixup", {}) or {}
     sample_rate = int(audio_cfg.get("sample_rate", 32000))
@@ -222,6 +238,7 @@ def _build_loaders(
         mixup_cross_species_p=float(mixup_cfg.get("cross_species_p", 0.0)),
         secondary_weight=float(data_cfg.get("secondary_weight", 0.3)),
         background_noise=bg_noise,
+        random_amplitude=rand_amp,
         crop_strategy=crop_strategy,
         crop_anchor_seconds=crop_anchor_seconds,
     )

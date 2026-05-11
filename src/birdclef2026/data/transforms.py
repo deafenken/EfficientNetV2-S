@@ -77,6 +77,39 @@ class BackgroundNoise:
         return mixed
 
 
+class RandomAmplitude:
+    """Per-sample log-uniform gain scaling.
+
+    amp = 10 ** uniform(log10_min, log10_max);   wave = wave * amp
+
+    Defaults (-1.0, 0.1) match BirdCLEF 2024 2nd place's "near/far distance"
+    augmentation: 10x attenuation to 1.26x boost, modelling the variable
+    SNR of soundscape recordings where the same species can be both close
+    and far from the mic. Applied BEFORE BackgroundNoise so the BG mix
+    weighs against the *scaled* wave (else BG would dominate quiet waves).
+
+    Args:
+        p: probability of applying.
+        log10_min, log10_max: bounds for the log-uniform amp exponent.
+    """
+
+    def __init__(
+        self,
+        p: float = 0.7,
+        log10_min: float = -1.0,
+        log10_max: float = 0.1,
+    ):
+        self.p = float(p)
+        self.log10_min = float(log10_min)
+        self.log10_max = float(log10_max)
+
+    def __call__(self, waveform: torch.Tensor) -> torch.Tensor:
+        if random.random() >= self.p:
+            return waveform
+        amp = 10.0 ** random.uniform(self.log10_min, self.log10_max)
+        return waveform * amp
+
+
 def _load_noise_clip(path: Path, sample_rate: int, length_samples: int) -> torch.Tensor | None:
     """Load a noise file and force-crop/pad to ``length_samples``. Returns None on failure."""
     try:

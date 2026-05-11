@@ -164,6 +164,18 @@ VARIANTS: dict[str, Variant] = {
             ),
         ),
     ),
+    # b09 = single NFNet retrained with target-domain BG + RandomAmplitude +
+    # LS=0.02; submission uses ±2.5s TTA + chunk smoothing. No PL (waiting
+    # on a multi-arch teacher). Fresh dataset slug so b03's eb1b pkg stays
+    # untouched as the LB-0.798 reference point.
+    "b09_eB1b_R2_clean": Variant(
+        name="b09_eB1b_R2_clean",
+        exp_ckpt_path="outputs/exp/eB1b_R2_clean/fold_0/swa.pt",
+        payload_dir=Path("/tmp/birdclef2026-ebr2-pkg-ckpt"),
+        dataset_handle="winbeaux/birdclef2026-ebr2-pkg-ckpt",
+        kernel_dir=ROOT / "kaggle/variants/b09_eB1b_R2_clean",
+        notes_label="eB1b R2 clean (train_soundscapes BG + RandomAmp + LS 0.02 + ±2.5s TTA + chunk smooth)",
+    ),
 }
 
 

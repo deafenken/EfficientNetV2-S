@@ -34,7 +34,7 @@ import torch
 from torch.utils.data import Dataset
 
 from ..utils.audio import crop_or_pad, extract_window, load_audio
-from .transforms import BackgroundNoise, mixup_pair
+from .transforms import BackgroundNoise, RandomAmplitude, mixup_pair
 
 
 def _is_nan(x) -> bool:
@@ -59,6 +59,7 @@ class SEDDataset(Dataset):
         mixup_cross_species_p: float = 0.0,
         secondary_weight: float = 0.3,
         background_noise: BackgroundNoise | None = None,
+        random_amplitude: RandomAmplitude | None = None,
         primary_only_for_soundscape: bool = False,
         val_n_crops: int = 1,
         crop_strategy: str = "head_tail",
@@ -99,6 +100,7 @@ class SEDDataset(Dataset):
             self._label_to_indices = buckets
         self.secondary_weight = float(secondary_weight)
         self.background_noise = background_noise if training else None
+        self.random_amplitude = random_amplitude if training else None
         self.primary_only_for_soundscape = bool(primary_only_for_soundscape)
         # Val multi-crop: emit K uniformly-spaced 5s windows per recording so
         # downstream val averaging matches the inference sliding-window pattern.
@@ -222,8 +224,10 @@ class SEDDataset(Dataset):
         return waveform, target, meta
 
     def _load_one(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, dict]:
-        """Single-sample load WITH background noise (used when no MixUp partner)."""
+        """Single-sample load WITH random amplitude + background noise (used when no MixUp partner)."""
         waveform, target, meta = self._load_raw(idx)
+        if self.training and self.random_amplitude is not None:
+            waveform = self.random_amplitude(waveform)
         if self.training and self.background_noise is not None:
             waveform = self.background_noise(waveform)
         return waveform, target, meta
@@ -334,6 +338,8 @@ class SEDDataset(Dataset):
                 target_aggregation=self.mixup_target_aggregation,
                 normalize=True,
             )
+            if self.random_amplitude is not None:
+                waveform = self.random_amplitude(waveform)
             if self.background_noise is not None:
                 waveform = self.background_noise(waveform)
             return waveform, target, meta

@@ -227,6 +227,8 @@ def predict_for_models(
     batch_size: int = 32,
     amp_dtype: str = "bf16",
     n_tta_crops: int = 1,
+    offsets: Sequence[float] | None = None,
+    chunk_smooth: bool = False,
 ) -> dict[str, np.ndarray]:
     """Equal-weight probability ensemble across ``models`` (+ optional crop TTA).
 
@@ -268,10 +270,20 @@ def predict_for_models(
     n_models = len(models)
     if n_models == 0:
         raise ValueError("no models passed to predict_for_models")
-    offsets = _tta_offsets(n_tta_crops)
+    if offsets is not None:
+        # Caller-supplied offsets override n_tta_crops. Useful for the b09
+        # ±2.5 s TTA where we want a wider spread than the default 0.5 s
+        # ladder, while keeping the rest of the pipeline unchanged.
+        offsets = [float(x) for x in offsets]
+        if not offsets:
+            raise ValueError("offsets must be non-empty")
+    else:
+        offsets = _tta_offsets(n_tta_crops)
     n_crops = len(offsets)
     if n_crops > 1:
         print(f"[infer] multi-crop TTA enabled: K={n_crops} offsets={offsets} (s)")
+    if chunk_smooth:
+        print("[infer] chunk_smooth enabled: kernel=[0.1, 0.2, 0.4, 0.2, 0.1] reflect-padded")
     n_classes = None
     predictions: dict[str, np.ndarray] = {}
 
@@ -337,6 +349,39 @@ def predict_for_models(
 
     if n_load_fail:
         print(f"[infer] WARN: {n_load_fail} audio files failed to load (filled zeros)")
+
+    if chunk_smooth and predictions:
+        # 2024 3rd-place trick: smooth each (audio_id, class) time series with
+        # kernel [0.1, 0.2, 0.4, 0.2, 0.1] over the 12 (or N) 5 s windows of
+        # the same file. Reflect padding handles file boundaries so the first
+        # and last window keep a centered kernel. Operates per-class
+        # independently; cheap O(N · C) numpy work after all forwards are done.
+        kernel = np.array([0.1, 0.2, 0.4, 0.2, 0.1], dtype=np.float32)
+        # Group rows by audio_id, preserving (end_time, row_id) for each window.
+        by_audio: dict[str, list[tuple[float, str]]] = defaultdict(list)
+        for row in rows:
+            rid = row["row_id"]
+            if rid in predictions:
+                by_audio[str(row["audio_id"])].append((float(row["end_time"]), rid))
+        n_smoothed = 0
+        for audio_id, items in by_audio.items():
+            if len(items) < 2:
+                continue
+            items.sort(key=lambda t: t[0])
+            rids = [t[1] for t in items]
+            stack = np.stack([predictions[r] for r in rids], axis=0)  # (T, C)
+            pad = len(kernel) // 2  # 2
+            padded = np.pad(stack, ((pad, pad), (0, 0)), mode="reflect")
+            # Convolve along time axis (axis=0) per class column.
+            T = stack.shape[0]
+            out = np.zeros_like(stack)
+            for i, w in enumerate(kernel):
+                out += w * padded[i : i + T]
+            for j, r in enumerate(rids):
+                predictions[r] = out[j]
+            n_smoothed += T
+        print(f"[infer] chunk_smooth: smoothed {n_smoothed} rows across {len(by_audio)} files")
+
     return predictions
 
 
@@ -416,6 +461,24 @@ def _parse_args() -> argparse.Namespace:
             "val_n_crops=5. Expected LB gain ~+0.005-0.015."
         ),
     )
+    p.add_argument(
+        "--tta-offsets", nargs="+", type=float, default=None,
+        help=(
+            "Explicit TTA crop offsets in seconds (overrides --n-tta-crops). "
+            "Example: `--tta-offsets -2.5 -1.25 0 1.25 2.5` gives a wider "
+            "spread than the default 0.5 s ladder, which is what b09 uses to "
+            "exercise more of the recording around each 5 s window."
+        ),
+    )
+    p.add_argument(
+        "--chunk-smooth", action="store_true",
+        help=(
+            "Apply [0.1, 0.2, 0.4, 0.2, 0.1] temporal smoothing per "
+            "(audio_id, class) across the file's windows after multi-crop "
+            "averaging. Reflect-padded at file boundaries. 2024 3rd-place "
+            "post-process; ~+0.002 LB on soundscape eval."
+        ),
+    )
     return p.parse_args()
 
 
@@ -483,6 +546,8 @@ def main() -> None:
         sample_rate=sample_rate, clip_seconds=clip_seconds,
         device=device, batch_size=args.batch_size, amp_dtype=args.amp_dtype,
         n_tta_crops=args.n_tta_crops,
+        offsets=args.tta_offsets,
+        chunk_smooth=args.chunk_smooth,
     )
 
     # Output column order from sample_submission (or the model's order if missing).
