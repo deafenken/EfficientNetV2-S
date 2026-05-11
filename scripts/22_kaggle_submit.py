@@ -150,13 +150,13 @@ VARIANTS: dict[str, Variant] = {
     # to add `nfnet_oof_auc.npy` alongside the existing swa.pt + src/ +
     # data.yaml. The kernel itself forks A34 (cells 0-39) and inlines our
     # NFNet inference + 4-way RRF + R1-R5 blend in cell F.
-    "b07_c0_deep_ensemble": Variant(
-        name="b07_c0_deep_ensemble",
+    "b08_deep_ensemble": Variant(
+        name="b08_deep_ensemble",
         exp_ckpt_path="outputs/exp/eB1b_nfnet_bgnoise/fold_0/swa.pt",
         payload_dir=Path("/tmp/birdclef2026-eb1b-pkg-ckpt"),
         dataset_handle="winbeaux/birdclef2026-eb1b-pkg-ckpt",
-        kernel_dir=ROOT / "kaggle/variants/b07_c0_deep_ensemble",
-        notes_label="eB1b SWA + nfnet_oof_auc.npy (c0 deep ensemble)",
+        kernel_dir=ROOT / "kaggle/variants/b08_deep_ensemble",
+        notes_label="eB1b SWA + nfnet_oof_auc.npy (deep ensemble v2, RRF-fixed)",
         extra_payload=(
             (
                 "outputs/exp/eB1b_nfnet_bgnoise/fold_0/nfnet_oof_auc.npy",

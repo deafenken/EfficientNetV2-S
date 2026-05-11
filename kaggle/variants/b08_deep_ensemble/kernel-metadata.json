@@ -1,7 +1,7 @@
 {
-  "id": "winbeaux/birdclef-2026-b07-c0-deep-ensemble",
-  "title": "BirdCLEF 2026 b07 c0 deep ensemble",
-  "code_file": "b07_c0_deep_ensemble.ipynb",
+  "id": "winbeaux/birdclef-2026-b08-deep-ensemble",
+  "title": "BirdCLEF 2026 b08 deep ensemble",
+  "code_file": "b08_deep_ensemble.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": true,
