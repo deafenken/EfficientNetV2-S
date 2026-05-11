@@ -2267,17 +2267,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Kaggle code-comp scoring is CPU-only
 import torch
 import numpy as np
 from birdclef2026.inference.predict import (
-    load_sed_checkpoint, predict_for_models, _find_audio_file, AUDIO_SUFFIXES,
+    load_sed_checkpoint, predict_for_models,
 )
 from birdclef2026.metadata import parse_row_id
 from birdclef2026.utils.config import load_yaml
-
-# Reuse A34's BASE (cell 4: Path("/kaggle/input/competitions/birdclef-2026")).
-# That's the canonical competition mount A34 already reads taxonomy.csv,
-# sample_submission.csv, train_soundscapes_labels.csv, and test_soundscapes/*.ogg
-# from, so we mirror it instead of running our own discovery.
-_test_dir = BASE / "test_soundscapes"
-assert _test_dir.is_dir(), f"test_soundscapes not mounted at {_test_dir}"
 
 _device = torch.device("cpu")
 _ckpt = PKG_INPUT / "swa.pt"
@@ -2295,17 +2288,30 @@ print(f"[b07-E2] loaded {_ckpt.name}, n_classes={len(_target_cols)}")
 # windows). The row-set divergence would leave NFNet predictions missing
 # for every row in meta_te. In scoring mode both paths converge to the
 # full 7200-row test set, but using meta_te works in both regimes.
+#
+# Path resolution: A34 already built `test_paths` (Cell 9, line 1791) —
+# in scoring mode this points at BASE/test_soundscapes, in editor mode
+# A34 falls back to BASE/train_soundscapes (line 1796). Either way it
+# is the authoritative list A34 actually ran inference on, so we map
+# row_id.audio_id → Path through it instead of guessing a directory.
+_path_by_audio_id = {Path(p).stem: Path(p) for p in test_paths}
 _meta_row_ids = meta_te["row_id"].astype(str).values
 _rows = []
 for _rid in _meta_row_ids:
     _audio_id, _end_time = parse_row_id(_rid)
+    _p = _path_by_audio_id.get(_audio_id)
+    assert _p is not None, (
+        f"[b07-E2] no audio file in test_paths for audio_id={_audio_id} "
+        f"(row_id={_rid}); test_paths has {len(test_paths)} files"
+    )
     _rows.append({
         "row_id": _rid,
         "audio_id": _audio_id,
         "end_time": _end_time,
-        "path": _find_audio_file(_test_dir, _audio_id),
+        "path": _p,
     })
-print(f"[b07-E2] test rows (from meta_te): {len(_rows)}")
+print(f"[b07-E2] test rows (from meta_te): {len(_rows)} "
+      f"unique_files={len(_path_by_audio_id)}")
 
 _predictions = predict_for_models(
     [_model], _rows,
