@@ -2272,11 +2272,12 @@ from birdclef2026.inference.predict import (
 from birdclef2026.metadata import parse_row_id
 from birdclef2026.utils.config import load_yaml
 
-# BC2026 mounts at /kaggle/input/birdclef-2026 (or competitions/birdclef-2026)
-_DATA_ROOT = Path("/kaggle/input/birdclef-2026")
-if not _DATA_ROOT.is_dir():
-    _DATA_ROOT = Path("/kaggle/input/competitions/birdclef-2026")
-assert _DATA_ROOT.is_dir(), f"BC2026 competition data not mounted ({_DATA_ROOT})"
+# Reuse A34's BASE (cell 4: Path("/kaggle/input/competitions/birdclef-2026")).
+# That's the canonical competition mount A34 already reads taxonomy.csv,
+# sample_submission.csv, train_soundscapes_labels.csv, and test_soundscapes/*.ogg
+# from, so we mirror it instead of running our own discovery.
+_test_dir = BASE / "test_soundscapes"
+assert _test_dir.is_dir(), f"test_soundscapes not mounted at {_test_dir}"
 
 _device = torch.device("cpu")
 _ckpt = PKG_INPUT / "swa.pt"
@@ -2294,7 +2295,6 @@ print(f"[b07-E2] loaded {_ckpt.name}, n_classes={len(_target_cols)}")
 # windows). The row-set divergence would leave NFNet predictions missing
 # for every row in meta_te. In scoring mode both paths converge to the
 # full 7200-row test set, but using meta_te works in both regimes.
-_test_dir = _DATA_ROOT / "test_soundscapes"
 _meta_row_ids = meta_te["row_id"].astype(str).values
 _rows = []
 for _rid in _meta_row_ids:
