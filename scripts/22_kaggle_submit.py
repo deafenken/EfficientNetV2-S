@@ -229,6 +229,41 @@ def push_dataset(variant: Variant) -> None:
         ignore_patterns=["__pycache__/", "*.pyc", ".git/", "dataset-metadata.json"],
     )
     print(f"[ds] OK → https://www.kaggle.com/datasets/{variant.dataset_handle}")
+    # Kaggle marks a freshly-uploaded dataset as "processing" for ~30-90s
+    # before files are queryable. If we push the kernel during that window,
+    # `kaggle kernels push` silently drops the dataset_source with a
+    # warning ("not valid dataset sources") and the kernel runs without
+    # the ckpt → fail-soft to all-zero submission. Poll until ready.
+    _wait_for_dataset_ready(variant.dataset_handle)
+
+
+def _wait_for_dataset_ready(handle: str, timeout_s: int = 600, poll_s: int = 10) -> None:
+    """Poll ``kaggle datasets status`` until the dataset is queryable.
+
+    The status command exits 0 with text like "complete" once Kaggle has
+    finished file processing. Errors exit non-zero (we treat as transient
+    and keep polling up to ``timeout_s``). Without this, kernel push races
+    the dataset processor and silently strips the dataset_source.
+    """
+    import time
+    print(f"[ds] waiting for {handle} to finish processing…")
+    deadline = time.monotonic() + timeout_s
+    env = {k: v for k, v in os.environ.items() if k != "KAGGLE_API_TOKEN"}
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            ["kaggle", "datasets", "status", handle],
+            env=env, capture_output=True, text=True,
+        )
+        out = (result.stdout + result.stderr).lower()
+        if "complete" in out or "ready" in out:
+            print(f"[ds] ready ({result.stdout.strip()})")
+            return
+        time.sleep(poll_s)
+    sys.exit(
+        f"[FATAL] dataset {handle} did not become ready within {timeout_s}s. "
+        f"Re-run with --kernel-only after manual confirmation at "
+        f"https://www.kaggle.com/datasets/{handle}."
+    )
 
 
 # --------------------------------------------------------------------------- #
