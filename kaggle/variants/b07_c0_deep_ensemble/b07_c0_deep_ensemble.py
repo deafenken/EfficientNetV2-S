@@ -2236,8 +2236,18 @@ print("[b07-E0] timm installed (no-deps)")
 from pathlib import Path
 import yaml as _yaml
 
-PKG_INPUT = Path("/kaggle/input/birdclef2026-eb1b-pkg-ckpt")
-assert PKG_INPUT.is_dir(), f"eb1b ckpt dataset not mounted at {PKG_INPUT}"
+# Kaggle's mount layout for private datasets depends on the kernel's
+# dataset count and ownership. Single-dataset kernels (e.g. b03) get
+# /kaggle/input/<slug>; kernels with many dataset_sources (like b07,
+# which inherits A34's 4 third-party datasets) get
+# /kaggle/input/datasets/<owner>/<slug>. Discover the actual path via
+# glob on a known marker file (swa.pt) so this works in either layout.
+_PKG_HITS = sorted(glob.glob(
+    "/kaggle/input/**/birdclef2026-eb1b-pkg-ckpt/swa.pt",
+    recursive=True,
+))
+assert _PKG_HITS, "eb1b ckpt dataset not mounted anywhere under /kaggle/input/"
+PKG_INPUT = Path(_PKG_HITS[0]).parent
 
 if str(PKG_INPUT / "src") not in sys.path:
     sys.path.insert(0, str(PKG_INPUT / "src"))
