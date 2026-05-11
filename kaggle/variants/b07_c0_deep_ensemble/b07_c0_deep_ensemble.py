@@ -2459,8 +2459,17 @@ xd = pd.DataFrame(pd_n).rank(axis=0, pct=True).to_numpy(np.float32)
 
 # ---- Layer 2: 4-way Reciprocal Rank Fusion ----
 def _rrf_score(p):
-    # rank along axis=0: 1 = lowest, N = highest. RRF reciprocal-rank score.
-    r = p.argsort(axis=0).argsort(axis=0).astype(np.float32) + 1.0
+    # Standard RRF: rank 1 = TOP of the ranked list (highest probability),
+    # rank N = bottom (lowest probability). 1/(K+r) then assigns the largest
+    # reciprocal-rank score to the top item, as the original RRF paper
+    # (Cormack et al. 2009) specifies.
+    #
+    # Earlier draft used `p.argsort().argsort()+1` which yields ASCENDING
+    # ranks (1 = smallest prob), inverting the RRF score — every branch's
+    # contribution was flipped, dragging A34's 0.943 baseline down to
+    # LB 0.611. Negating p before the double argsort restores descending
+    # ranks without changing the score range.
+    r = (-p).argsort(axis=0).argsort(axis=0).astype(np.float32) + 1.0
     return 1.0 / (K_RRF + r)
 
 # Per-class NFNet trust weight from OOF AUC.
