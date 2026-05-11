@@ -2267,8 +2267,9 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Kaggle code-comp scoring is CPU-only
 import torch
 import numpy as np
 from birdclef2026.inference.predict import (
-    load_sed_checkpoint, build_test_rows, predict_for_models,
+    load_sed_checkpoint, predict_for_models, _find_audio_file, AUDIO_SUFFIXES,
 )
+from birdclef2026.metadata import parse_row_id
 from birdclef2026.utils.config import load_yaml
 
 # BC2026 mounts at /kaggle/input/birdclef-2026 (or competitions/birdclef-2026)
@@ -2285,12 +2286,26 @@ _model, _target_cols, _audio_cfg = load_sed_checkpoint(
 )
 print(f"[b07-E2] loaded {_ckpt.name}, n_classes={len(_target_cols)}")
 
-_rows, _row_id_order = build_test_rows(
-    _DATA_ROOT / "sample_submission.csv",
-    _DATA_ROOT / "test_soundscapes",
-    clip_seconds=float(_audio_cfg.get("clip_seconds", 5.0)),
-)
-print(f"[b07-E2] test rows: {len(_rows)}")
+# Build rows directly from A34's meta_te["row_id"]. This is the canonical
+# row enumeration used by submission_{protossm,sed,head}.csv. We can't use
+# predict.build_test_rows() here because in editor mode it walks
+# sample_submission.csv (only 3 stub rows), while A34 scans
+# sorted(test_soundscapes/*.ogg) and emits 240 rows (20 dev files × 12
+# windows). The row-set divergence would leave NFNet predictions missing
+# for every row in meta_te. In scoring mode both paths converge to the
+# full 7200-row test set, but using meta_te works in both regimes.
+_test_dir = _DATA_ROOT / "test_soundscapes"
+_meta_row_ids = meta_te["row_id"].astype(str).values
+_rows = []
+for _rid in _meta_row_ids:
+    _audio_id, _end_time = parse_row_id(_rid)
+    _rows.append({
+        "row_id": _rid,
+        "audio_id": _audio_id,
+        "end_time": _end_time,
+        "path": _find_audio_file(_test_dir, _audio_id),
+    })
+print(f"[b07-E2] test rows (from meta_te): {len(_rows)}")
 
 _predictions = predict_for_models(
     [_model], _rows,
