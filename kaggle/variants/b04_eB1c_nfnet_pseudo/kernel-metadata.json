@@ -1,0 +1,22 @@
+{
+  "id": "winbeaux/birdclef-2026-b04-eb1c-nfnet-pseudo-fold0",
+  "title": "BirdCLEF 2026 b04 eB1c NFNet pseudo fold0",
+  "code_file": "birdclef-2026-b04-eb1c-nfnet-pseudo-fold0.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "winbeaux/birdclef2026-eb1c-pkg-ckpt"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ttahara/birdclef-2026-download-wheels"
+  ],
+  "model_sources": []
+}

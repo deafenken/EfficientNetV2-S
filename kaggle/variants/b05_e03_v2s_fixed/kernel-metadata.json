@@ -1,0 +1,22 @@
+{
+  "id": "winbeaux/birdclef-2026-b05-e03-v2-s-fixed-fold0",
+  "title": "BirdCLEF 2026 b05 e03 V2-S fixed fold0",
+  "code_file": "birdclef-2026-b05-e03-v2s-fixed-fold0.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [],
+  "dataset_sources": [
+    "winbeaux/birdclef2026-e03-pkg-ckpt"
+  ],
+  "competition_sources": [
+    "birdclef-2026"
+  ],
+  "kernel_sources": [
+    "ttahara/birdclef-2026-download-wheels"
+  ],
+  "model_sources": []
+}
