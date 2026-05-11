@@ -86,6 +86,11 @@ class Variant:
     # no ckpt of its own — it only pushes a kernel that consumes other
     # kernels' outputs via kernel_sources, e.g. a blend kernel).
     kernel_only: bool = False
+    # Extra files (path relative to repo root → destination basename in
+    # the payload) that should be copied alongside swa.pt / data.yaml.
+    # b07 needs `nfnet_oof_auc.npy` shipped into the eB1b pkg so the
+    # kernel can per-class-weight NFNet's RRF contribution.
+    extra_payload: tuple[tuple[str, str], ...] = ()
 
 
 VARIANTS: dict[str, Variant] = {
@@ -140,6 +145,24 @@ VARIANTS: dict[str, Variant] = {
         kernel_dir=ROOT / "kaggle/variants/b06_a34_eB1b_blend",
         notes_label="b06 A34+eB1b rank-blend",
         kernel_only=True,
+    ),
+    # b07 = c0 deep ensemble. Reuses the eB1b pkg dataset; we re-version it
+    # to add `nfnet_oof_auc.npy` alongside the existing swa.pt + src/ +
+    # data.yaml. The kernel itself forks A34 (cells 0-39) and inlines our
+    # NFNet inference + 4-way RRF + R1-R5 blend in cell F.
+    "b07_c0_deep_ensemble": Variant(
+        name="b07_c0_deep_ensemble",
+        exp_ckpt_path="outputs/exp/eB1b_nfnet_bgnoise/fold_0/swa.pt",
+        payload_dir=Path("/tmp/birdclef2026-eb1b-pkg-ckpt"),
+        dataset_handle="winbeaux/birdclef2026-eb1b-pkg-ckpt",
+        kernel_dir=ROOT / "kaggle/variants/b07_c0_deep_ensemble",
+        notes_label="eB1b SWA + nfnet_oof_auc.npy (c0 deep ensemble)",
+        extra_payload=(
+            (
+                "outputs/exp/eB1b_nfnet_bgnoise/fold_0/nfnet_oof_auc.npy",
+                "nfnet_oof_auc.npy",
+            ),
+        ),
     ),
 }
 
@@ -201,6 +224,14 @@ def stage_payload(variant: Variant) -> None:
     if not ckpt.is_file():
         sys.exit(f"[FATAL] checkpoint missing: {ckpt}")
     shutil.copy(ckpt, payload / "swa.pt")
+
+    # Extra files declared on the Variant (e.g. b07 ships nfnet_oof_auc.npy
+    # alongside swa.pt). Each entry is (src_rel_to_root, dst_basename).
+    for src_rel, dst_name in variant.extra_payload:
+        src = ROOT / src_rel
+        if not src.is_file():
+            sys.exit(f"[FATAL] extra_payload missing: {src}")
+        shutil.copy(src, payload / dst_name)
 
     # Each variant's dataset-metadata.json lives next to this script's
     # repo at kaggle/datasets/<slug>/. We resolve it from dataset_handle so
