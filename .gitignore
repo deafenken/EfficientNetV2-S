@@ -39,5 +39,5 @@ mlruns/
 # macOS resource forks
 ._*
 
-# Claude local settings
-.claude/settings.local.json
+# Claude local settings & session state
+.claude/
