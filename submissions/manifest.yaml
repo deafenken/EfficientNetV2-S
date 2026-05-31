@@ -1,0 +1,176 @@
+# ============================================================================
+# submissions/manifest.yaml — SINGLE SOURCE OF TRUTH for every Kaggle submission
+# ============================================================================
+#
+# This file maps, for each variant we have ever pushed:
+#
+#   exp_config  →  checkpoint  →  kaggle dataset (+version)  →  kernel (+version)
+#                →  OOF AUC  →  public/private LB
+#
+# Why this exists: before this manifest the mapping lived only in git commit
+# messages, hardcoded paths inside scripts/22_kaggle_submit.py, dataset
+# version_notes timestamps, and docs/optimization_roadmap.md (which stops at
+# A29). Answering "why did b03 score X / which ckpt is on Kaggle for b08?" meant
+# grep-ing four places. Now it is one auditable file.
+#
+# The b-line block below is CONSUMED by the submit tool:
+#   uv run python scripts/kaggle/submit.py b03_eB1b_nfnet_bgnoise
+# `scripts/kaggle/manifest.py` loads `b_variants` into Variant objects (the
+# payload dir is derived as /tmp/<dataset slug>, the kernel dir as
+# kaggle/variants/<id>). `make audit-submissions` validates this file against
+# kaggle/variants/<id>/kernel-metadata.json, the dataset-metadata.json on disk,
+# and the checkpoint paths.
+#
+# Naming of every id / prefix / proper noun is explained in docs/NAMING.md.
+# LB fill-in flow:  uv run python scripts/kaggle/record_score.py <id> --public 0.xxx
+# ----------------------------------------------------------------------------
+
+owners:
+  # b-line (our own trained models) — datasets AND kernels live here:
+  b_line: winbeaux
+  # a-line (public-notebook clones/blends) — kernels were pushed here:
+  a_line: longkunshicandyman
+  team: "Longkun Shi (Candyman)"
+
+# Medal cuts pulled via Kaggle API (~2026-05; see docs/optimization_roadmap.md):
+#   bronze ~0.943  silver ~0.944  gold ~0.949  top1 ~0.956  (2913 teams)
+# Our best CONFIRMED LB: 0.929 (a29_nina_ensemble_solutions).
+
+# ----------------------------------------------------------------------------
+# b-line — OUR trained log-mel CNN models. Pushed via scripts/kaggle/submit.py.
+#   oof_auc_fold0 = single-fold OOF macro-AUC on focal clips (over-optimistic;
+#                   does NOT track soundscape LB — see the eB1b LB 0.798 vs OOF
+#                   0.98 gap. Decisions should be LB-led until CV is fixed).
+# ----------------------------------------------------------------------------
+b_variants:
+  - id: b01_eB1_nfnet_l0
+    exp_config: configs/exp/eB1_nfnet_l0.yaml
+    fold: 0
+    checkpoint: outputs/exp/eB1_nfnet_l0/fold_0/swa.pt
+    dataset_handle: winbeaux/birdclef2026-eb1-pkg-ckpt
+    dataset_version: null            # not yet captured — fill on next push
+    kernel_id: winbeaux/birdclef-2026-b01-eb1-nfnet-l0-fold0
+    kernel_version: null
+    notes_label: "eB1 fold-0 SWA + package"
+    oof_auc_fold0: 0.9793
+    lb_public: 0.75                  # ECA-NFNet-L0, ImageNet warm-start, domain adapters OFF
+    lb_private: null
+    notes: "Baseline NFNet, all domain adapters off. val_strict 0.91 but LB 0.75 = focal→soundscape domain shift."
+
+  - id: b02_e01_v2s_baseline
+    exp_config: configs/exp/e01_v2s_5fold.yaml
+    fold: 0
+    checkpoint: outputs/exp/e01_v2s_5fold/fold_0/swa.pt
+    dataset_handle: winbeaux/birdclef2026-e01-pkg-ckpt
+    dataset_version: null
+    kernel_id: winbeaux/birdclef-2026-b02-e01-v2-s-baseline-fold0
+    kernel_version: null
+    notes_label: "e01 fold-0 SWA + package"
+    oof_auc_fold0: 0.8555
+    lb_public: null
+    lb_private: null
+    notes: "EfficientNetV2-S baseline (LB control vs the NFNet line)."
+
+  - id: b03_eB1b_nfnet_bgnoise
+    exp_config: configs/exp/eB1b_nfnet_bgnoise.yaml
+    fold: 0
+    checkpoint: outputs/exp/eB1b_nfnet_bgnoise/fold_0/swa.pt
+    dataset_handle: winbeaux/birdclef2026-eb1b-pkg-ckpt
+    dataset_version: null
+    kernel_id: winbeaux/birdclef-2026-b03-eb1b-nfnet-bgnoise-fold0
+    kernel_version: null
+    notes_label: "eB1b fold-0 SWA + package"
+    oof_auc_fold0: 0.9805            # best OOF of the b-line
+    lb_public: 0.798                 # best b-line LB; the reference point for b09
+    lb_private: null
+    notes: "NFNet + ESC-50 BG noise + forced cross-species mixup. +0.048 LB over b01."
+
+  - id: b04_eB1c_nfnet_pseudo
+    exp_config: configs/exp/eB1c_nfnet_pseudo.yaml
+    fold: 0
+    checkpoint: outputs/exp/eB1c_nfnet_pseudo/fold_0/swa.pt
+    dataset_handle: winbeaux/birdclef2026-eb1c-pkg-ckpt
+    dataset_version: null
+    kernel_id: winbeaux/birdclef-2026-b04-eb1c-nfnet-pseudo-fold0
+    kernel_version: null
+    notes_label: "eB1c fold-0 SWA + package"
+    oof_auc_fold0: 0.9790
+    lb_public: 0.793                 # FAILED round: 0.793 < b03 0.798
+    lb_private: null
+    notes: "R1 pseudo-label round. Single-arch teacher → no gain; DISCARDED (not reused as a teacher)."
+
+  - id: b05_e03_v2s_fixed
+    exp_config: configs/exp/e03_v2s_fixed.yaml
+    fold: 0
+    checkpoint: outputs/exp/e03_v2s_fixed/fold_0/swa.pt
+    dataset_handle: winbeaux/birdclef2026-e03-pkg-ckpt
+    dataset_version: null
+    kernel_id: winbeaux/birdclef-2026-b05-e03-v2-s-fixed-fold0
+    kernel_version: null
+    notes_label: "e03 fold-0 SWA + package"
+    oof_auc_fold0: 0.8599
+    lb_public: null
+    lb_private: null
+    notes: "V2-S with warm-start + val-protocol fix."
+
+  - id: b06_a34_eB1b_blend
+    kernel_only: true                # no ckpt/dataset; blends two existing kernel outputs
+    kernel_id: winbeaux/birdclef-2026-b06-a34-eb1b-blend
+    kernel_version: null
+    kernel_sources:
+      - longkunshicandyman/birdclef-2026-a34-a33-epoch-upscale
+      - winbeaux/birdclef-2026-b03-eb1b-nfnet-bgnoise-fold0
+    notes_label: "b06 A34+eB1b rank-blend"
+    lb_public: null
+    lb_private: null
+    notes: "Rank-average of A34 (a-line ~0.929) and b03 (NFNet 0.798). Tests whether the diverse CN N helps the strong public clone."
+
+  # b07 was renamed to b08 (commit dc9d398). No b07 directory exists — this is
+  # an intentional lineage gap, not a missing variant.
+
+  - id: b08_deep_ensemble
+    exp_config: configs/exp/eB1b_nfnet_bgnoise.yaml
+    fold: 0
+    checkpoint: outputs/exp/eB1b_nfnet_bgnoise/fold_0/swa.pt
+    dataset_handle: winbeaux/birdclef2026-eb1b-pkg-ckpt
+    dataset_version: null
+    kernel_id: winbeaux/birdclef-2026-b08-deep-ensemble
+    kernel_version: null
+    notes_label: "eB1b SWA + nfnet_oof_auc.npy (deep ensemble v2, RRF-fixed)"
+    extra_payload:
+      - [outputs/exp/eB1b_nfnet_bgnoise/fold_0/nfnet_oof_auc.npy, nfnet_oof_auc.npy]
+    lb_public: null
+    lb_private: null
+    parent: b06_a34_eB1b_blend
+    notes: "Forks A34 + inlines our NFNet inference + 4-way Reciprocal-Rank-Fusion blend. (was b07)"
+
+  - id: b09_eB1b_R2_clean
+    exp_config: configs/exp/eB1b_R2_clean.yaml
+    fold: 0
+    checkpoint: outputs/exp/eB1b_R2_clean/fold_0/swa.pt
+    dataset_handle: winbeaux/birdclef2026-ebr2-pkg-ckpt
+    dataset_version: null
+    kernel_id: winbeaux/birdclef-2026-b09-eb1b-r2-clean
+    kernel_version: null
+    notes_label: "eB1b R2 clean (train_soundscapes BG + RandomAmp + LS 0.02 + ±2.5s TTA + chunk smooth)"
+    oof_auc_fold0: null              # NOT TRAINED YET as of 2026-05-31
+    lb_public: null
+    lb_private: null
+    parent: b03_eB1b_nfnet_bgnoise
+    status: not_trained
+    notes: "Clean retrain over b03 (LB 0.798): target-domain BG noise + RandomAmplitude + LS 0.05→0.02; submit-time ±2.5s TTA + chunk smoothing. Expected +0.03~0.05 LB. Train before submitting."
+
+# ----------------------------------------------------------------------------
+# a-line — public-notebook clones & blends (kernels under longkunshicandyman/,
+# pushed as raw .ipynb via the legacy kaggle CLI, NOT via scripts/kaggle/submit).
+# Recorded here for lineage; the FULL per-variant ablation table (A0..A41 with
+# every LB) lives in docs/optimization_roadmap.md — not duplicated here.
+# ----------------------------------------------------------------------------
+a_variants_summary:
+  best: { id: a29_nina_ensemble_solutions, lb_public: 0.929 }
+  anchor: { id: a0_v3_lgbm_original, lb_public: 0.928, method: "Perch-v2 emb + ProtoSSM + MLP/LGBM probes (V3 LGBM)" }
+  notable:
+    - { id: a30_wliilamsam_0943_base, lb_public: null, note: "verbatim repro of public 0.943 — anchor check; did not confirm an upward transfer for us" }
+    - { id: a25_mtoshidesu_0932_v4, lb_public: 0.922, note: "claimed 0.932 → got 0.922 (public clones don't transfer up for us)" }
+    - { id: a27_tucker_distilled_sed, lb_public: 0.912, note: "public SED head did not transfer" }
+  conclusion: "a-line plateaued at 0.928-0.929; direct public clones do not transfer upward. Full table: docs/optimization_roadmap.md"

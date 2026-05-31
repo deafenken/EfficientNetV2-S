@@ -31,3 +31,23 @@ Sources:
 - BCEWithLogitsLoss.
 - Hidden test: split each one-minute soundscape into 5 second windows and predict each sample-submission `row_id`.
 
+## Submission / runtime constraints (IMPORTANT)
+
+This is an **offline code competition**. Our submission kernels run with
+`enable_internet: false` and `enable_gpu: false` (see any
+`kaggle/variants/*/kernel-metadata.json`), so:
+
+- **CPU-only inference.** No GPU at scoring time. Model weights must be attached
+  as Kaggle **datasets** (`*-pkg-ckpt`); nothing is downloaded at runtime.
+- **Runtime budget is the binding constraint.** The hidden test is ~600 one-minute
+  soundscapes (≈the size that the kernel must score within the competition's
+  notebook time limit). BirdCLEF code competitions have historically capped the
+  scoring run at **≤ 90 minutes CPU** — **confirm the exact limit on the
+  competition's "Code Requirements" tab** before assuming. This is why the
+  ensemble size / model count is bounded and why ONNX/OpenVINO fp16 CPU
+  inference is the lever for fitting more models in budget.
+- **Never hardcode the species count.** Read target columns (and their count)
+  from `sample_submission.csv` at runtime — it is the source of truth.
+- **Fail-soft.** The kernel always writes a valid (zero-filled) `submission.csv`
+  first, then fills it in, so a mid-run crash still produces a scorable file.
+

@@ -16,7 +16,15 @@ data/*
 outputs/*
 !outputs/.gitkeep
 submission.csv
-submissions/
+# Keep the submissions/ manifest + README tracked; ignore only generated CSVs.
+submissions/*.csv
+
+# Kaggle credentials must never be committed.
+.kaggle/
+kaggle.json
+access_token
+*.env
+!.env.example
 
 # training artifacts
 *.pt

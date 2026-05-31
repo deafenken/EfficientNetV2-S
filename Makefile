@@ -19,6 +19,7 @@ MEL_STATS_FILES ?= 4000
 	inspect debug-train train infer-fallback infer smoke \
 	folds mel-stats prefetch-weights train-ddp \
 	predict assemble-oof \
+	submit submit-dry audit-submissions list-variants \
 	prepare-kaggle-kernel push-kaggle-kernel kernel-status
 
 help:
@@ -46,7 +47,13 @@ help:
 	@echo "  debug-train / train   — python -m birdclef2026.train"
 	@echo "  infer / infer-fallback— python -m birdclef2026.infer"
 	@echo ""
-	@echo "Kaggle kernel push (for the future submission notebook):"
+	@echo "Kaggle submission (b-line; docs/SUBMISSION_WORKFLOW.md):"
+	@echo "  list-variants         — list submittable variants from submissions/manifest.yaml"
+	@echo "  audit-submissions     — validate manifest <-> kernel/dataset/checkpoint on disk"
+	@echo "  submit-dry VARIANT=b03_eB1b_nfnet_bgnoise  — stage + convert, NO network"
+	@echo "  submit VARIANT=b03_eB1b_nfnet_bgnoise      — upload dataset + push kernel"
+	@echo ""
+	@echo "Legacy Kaggle kernel push:"
 	@echo "  prepare-kaggle-kernel — sync kaggle/<dir>"
 	@echo "  push-kaggle-kernel    — kaggle kernels push -p kaggle/<dir>"
 	@echo "  kernel-status         — kaggle kernels status <ref>"
@@ -124,6 +131,23 @@ infer:
 
 smoke:
 	PYTHONPATH=src $(PYTHON) scripts/smoke_checks.py
+
+# ---- Kaggle submission (manifest-driven; see docs/SUBMISSION_WORKFLOW.md) ----
+VARIANT ?=
+
+list-variants:
+	uv run python scripts/kaggle/submit.py --list
+
+audit-submissions:
+	uv run python scripts/kaggle/audit.py
+
+# Verify a variant's staging without any Kaggle network calls.
+submit-dry:
+	uv run python scripts/kaggle/submit.py $(VARIANT) --dry-run
+
+# Full submit (upload dataset + push kernel). e.g. make submit VARIANT=b03_eB1b_nfnet_bgnoise
+submit:
+	uv run python scripts/kaggle/submit.py $(VARIANT)
 
 # ---- Kaggle kernel push (still useful for the future inference notebook) ----
 prepare-kaggle-kernel:
